@@ -126,7 +126,7 @@ if page == "🏠 Dashboard":
     else:
         total_classes = len(classes_res.data)
         col1, col2, col3 = st.columns(3)
-        col1.metric("Active Sections", total_classes)
+        col1.metric("Active Classes", total_classes)
         col2.metric("System Status", "Online", "Ready")
         col3.metric("Current Term", "2026-Q1")
         st.divider()
@@ -309,6 +309,7 @@ elif page == "🏆 Record Scores":
                     st.success(f"Scores saved! Average: {edited_df['Points Earned'].mean():.1f}/{max_pts}")
                 except Exception as e:
                     st.error(f"Error: {e}")
+
 
 
 
