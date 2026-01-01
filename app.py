@@ -130,49 +130,72 @@ elif page == "Take Attendance":
                 st.success(f"Attendance saved for {len(final_records)} students!")
 
 # --- PAGE: SCORES ---
-elif page == "Take Attendance":
-    st.header("📝 Daily Attendance")
+elif page == "Record Scores":
+    st.header("🏆 Record Class Scores")
     classes_data = get_classes()
     
     if not classes_data.data:
-        st.warning("Please add a class first.")
+        st.warning("Please add a class and students first in the 'First Time Setup' page.")
     else:
-        # Date & Class Selection
+        # 1. Configuration Inputs
         col1, col2 = st.columns(2)
-        selected_date = col1.date_input("Date", datetime.date.today())
+        score_date = col1.date_input("Date of Activity", datetime.date.today())
+        
+        categories = ["Quiz", "Exercise", "Midterm", "Assignment", "Presentation", "Group Work", "Class Participation"]
+        category = col2.selectbox("Category", categories)
+        
         class_map = {c['name']: c['id'] for c in classes_data.data}
-        selected_class = col2.selectbox("Class", list(class_map.keys()))
+        selected_class = st.selectbox("Select Class", list(class_map.keys()))
         
-        students = get_students(class_map[selected_class])
+        # Fetch Students
+        students_response = get_students(class_map[selected_class])
+        students = students_response.data
         
-        if not students.data:
-            st.info("No students enrolled.")
+        if not students:
+            st.info("No students enrolled in this class yet.")
         else:
-            # Prepare data for the table
-            df = pd.DataFrame(students.data)
-            df = df[['full_name']].copy()
-            df['Present'] = True # Default to True
-            
-            st.write("💡 *Tip: Use the search icon (top right of table) to find a specific name.*")
-            
-            # THE BETTER WAY: st.data_editor
-            # This shows 100 names in a scrollable, searchable box
+            st.write(f"### Entering {category} scores for {len(students)} students")
+            st.info("💡 You can **Search** (top right of table) or **Sort** by clicking column headers.")
+
+            # 2. Build the Dataframe for the table
+            # This ensures even with 100 students, it stays in one scrollable box
+            df_scores = pd.DataFrame(students)
+            df_scores = df_scores[['full_name']].rename(columns={'full_name': 'Student Name'})
+            df_scores['Score (0-100)'] = 0.0  # Default value
+
+            # 3. The Searchable Data Editor
             edited_df = st.data_editor(
-                df,
-                column_config={"Present": st.column_config.CheckboxColumn(required=True)},
-                disabled=["full_name"], # Prevent editing names
+                df_scores,
+                column_config={
+                    "Score (0-100)": st.column_config.NumberColumn(
+                        "Score",
+                        help="Enter the points earned (0-100)",
+                        min_value=0,
+                        max_value=100,
+                        step=1,
+                        format="%d"
+                    )
+                },
+                disabled=["Student Name"], # User can't change the name here
                 hide_index=True,
-                use_container_width=True
+                use_container_width=True,
+                num_rows="fixed" 
             )
 
-            if st.button("💾 Save Attendance"):
-                final_records = []
+            # 4. Save Logic
+            if st.button("💾 Save All Scores to Database"):
+                score_records = []
                 for i, row in edited_df.iterrows():
-                    final_records.append({
-                        "student_id": students.data[i]['id'],
-                        "is_present": row['Present'],
-                        "date": str(selected_date)
+                    score_records.append({
+                        "student_id": students[i]['id'],
+                        "category": category,
+                        "score_value": row['Score (0-100)'],
+                        "recorded_at": str(score_date) # Saving the chosen date
                     })
                 
-                conn.table("attendance").upsert(final_records).execute()
-                st.success(f"Attendance saved for {len(final_records)} students!")
+                try:
+                    conn.table("scores").insert(score_records).execute()
+                    st.success(f"Successfully saved {category} scores for {selected_class}!")
+                except Exception as e:
+                    st.error(f"Failed to save: {e}")
+
