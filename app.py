@@ -37,41 +37,50 @@ def get_students(class_id):
 # --- PAGE: SETUP ---
 # --- PAGE: SETUP ---
 if page == "First Time Setup":
-    st.header("1️⃣ Create a New Class")
-    with st.form("add_class_form", clear_on_submit=True):
-        new_class_name = st.text_input("Class Name (e.g., Computer Science 101)")
+    st.header("1️⃣ Create a Class")
+    with st.form("add_class_form"):
+        new_class_name = st.text_input("Class Name")
         if st.form_submit_button("Create Class"):
-            if new_class_name:
-                conn.table("classes").insert({"name": new_class_name}).execute()
-                st.success(f"Class '{new_class_name}' added!")
-                st.rerun()
-            else:
-                st.error("Please enter a name.")
+            conn.table("classes").insert({"name": new_class_name}).execute()
+            st.success("Class Created!")
+            st.rerun()
 
     st.divider()
-    
-    # Check if classes exist before allowing student entry
-    classes_data = get_classes()
-    if classes_data.data:
-        st.header("2️⃣ Enroll Students")
-        # Create a dictionary to map names to IDs
-        class_options = {c['name']: c['id'] for c in classes_data.data}
-        selected_class = st.selectbox("Select Class", list(class_options.keys()))
-        
-        with st.form("add_student_form", clear_on_submit=True):
-            student_name = st.text_input("Student Full Name")
-            if st.form_submit_button("Enroll Student"):
-                if student_name:
-                    conn.table("students").insert({
-                        "full_name": student_name, 
-                        "class_id": class_options[selected_class]
-                    }).execute()
-                    st.success(f"Added {student_name} to {selected_class}!")
-                else:
-                    st.error("Please enter a student name.")
-    else:
-        st.info("Add your first class above to start enrolling students.")
 
+    # 2️⃣ Bulk Upload Section
+    st.header("2️⃣ Bulk Upload Students")
+    classes_data = get_classes()
+    
+    if classes_data.data:
+        class_map = {c['name']: c['id'] for c in classes_data.data}
+        target_class = st.selectbox("Upload to which class?", list(class_map.keys()))
+        
+        uploaded_file = st.file_uploader("Upload CSV or Excel (Must have 'name' and 'gender' columns)", type=['csv', 'xlsx'])
+        
+        if uploaded_file is not None:
+            import pandas as pd
+            # Read the file
+            if uploaded_file.name.endswith('.csv'):
+                df = pd.read_csv(uploaded_file)
+            else:
+                df = pd.read_excel(uploaded_file)
+            
+            st.write("Preview of data:", df.head())
+            
+            if st.button("Import All Students"):
+                # Prepare data for Supabase
+                student_list = []
+                for index, row in df.iterrows():
+                    student_list.append({
+                        "full_name": row['name'], 
+                        "class_id": class_map[target_class]
+                        # Note: If you want to save gender, we need to add a gender column to your Supabase table first!
+                    })
+                
+                conn.table("students").insert(student_list).execute()
+                st.success(f"Successfully imported {len(student_list)} students!")
+    else:
+        st.info("Create a class first.")
 # --- PAGE: ATTENDANCE ---
 elif page == "Take Attendance":
     st.header("📝 Take Attendance")
@@ -102,4 +111,5 @@ elif page == "Take Attendance":
             if st.button("Save to Database"):
                 conn.table("attendance").upsert(attendance_results).execute()
                 st.success("Attendance Recorded!")
+
 
