@@ -35,27 +35,42 @@ def get_students(class_id):
     return conn.table("students").select("id, full_name").eq("class_id", class_id).execute()
 
 # --- PAGE: SETUP ---
+# --- PAGE: SETUP ---
 if page == "First Time Setup":
-    st.header("1️⃣ Add a Class")
-    with st.form("add_class"):
-        new_class = st.text_input("Class Name")
-        if st.form_submit_button("Create"):
-            conn.table("classes").insert({"name": new_class}).execute()
-            st.success("Done!")
-            st.rerun()
+    st.header("1️⃣ Create a New Class")
+    with st.form("add_class_form", clear_on_submit=True):
+        new_class_name = st.text_input("Class Name (e.g., Computer Science 101)")
+        if st.form_submit_button("Create Class"):
+            if new_class_name:
+                conn.table("classes").insert({"name": new_class_name}).execute()
+                st.success(f"Class '{new_class_name}' added!")
+                st.rerun()
+            else:
+                st.error("Please enter a name.")
 
     st.divider()
     
-    classes = get_classes()
-    if classes.data:
-        st.header("2️⃣ Add Students")
-        class_map = {c['name']: c['id'] for c in classes.data}
-        sel_c = st.selectbox("Select Class", list(class_map.keys()))
-        with st.form("add_student"):
-            s_name = st.text_input("Student Name")
-            if st.form_submit_button("Enroll"):
-                conn.table("students").insert({"full_name": s_name, "class_id": class_map[sel_c]}).execute()
-                st.success("Enrolled!")
+    # Check if classes exist before allowing student entry
+    classes_data = get_classes()
+    if classes_data.data:
+        st.header("2️⃣ Enroll Students")
+        # Create a dictionary to map names to IDs
+        class_options = {c['name']: c['id'] for c in classes_data.data}
+        selected_class = st.selectbox("Select Class", list(class_options.keys()))
+        
+        with st.form("add_student_form", clear_on_submit=True):
+            student_name = st.text_input("Student Full Name")
+            if st.form_submit_button("Enroll Student"):
+                if student_name:
+                    conn.table("students").insert({
+                        "full_name": student_name, 
+                        "class_id": class_options[selected_class]
+                    }).execute()
+                    st.success(f"Added {student_name} to {selected_class}!")
+                else:
+                    st.error("Please enter a student name.")
+    else:
+        st.info("Add your first class above to start enrolling students.")
 
 # --- PAGE: ATTENDANCE ---
 elif page == "Take Attendance":
@@ -87,3 +102,4 @@ elif page == "Take Attendance":
             if st.button("Save to Database"):
                 conn.table("attendance").upsert(attendance_results).execute()
                 st.success("Attendance Recorded!")
+
