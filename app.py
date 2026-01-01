@@ -3,36 +3,87 @@ from st_supabase_connection import SupabaseConnection
 import datetime
 import pandas as pd
 
-# 1. Setup Connection
+# --- 1. PRO PAGE CONFIG ---
+st.set_page_config(
+    page_title="EduTrack Pro",
+    page_icon="🎓",
+    layout="wide",
+    initial_sidebar_state="expanded",
+)
+
+# Custom CSS for a "Mobile-First" clean look
+st.markdown("""
+    <style>
+    .main {
+        background-color: #f5f7f9;
+    }
+    .stButton>button {
+        width: 100%;
+        border-radius: 10px;
+        height: 3em;
+        background-color: #4CAF50;
+        color: white;
+    }
+    .stSelectbox, .stDateInput {
+        border-radius: 10px;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
+# 2. Setup Connection
 conn = st.connection("supabase", type=SupabaseConnection)
 
-# 2. Simple Login Protection
+# 3. Simple Login Protection
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
-    st.title("🔒 Teacher Login")
-    password = st.text_input("Enter Admin Password", type="password")
-    if st.button("Login"):
-        if password == "admin123": # Change this to your preferred password!
-            st.session_state.logged_in = True
-            st.rerun()
-        else:
-            st.error("Wrong password")
-    st.stop() 
+    st.title("🎓 EduTrack Pro")
+    st.subheader("Please sign in to continue")
+    
+    with st.container():
+        password = st.text_input("Admin Password", type="password")
+        if st.button("Login to Dashboard"):
+            if password == "admin123":
+                st.session_state.logged_in = True
+                st.rerun()
+            else:
+                st.error("Invalid credentials.")
+    st.stop()
 
-# --- FUNCTIONS ---
-def get_classes():
-    return conn.table("classes").select("id, name").execute()
+# --- NAVIGATION WITH ICONS ---
+with st.sidebar:
+    st.title("🎓 EduTrack")
+    st.write(f"Logged in as: **Teacher**")
+    st.divider()
+    page = st.radio(
+        "Navigation",
+        ["🏠 Dashboard", "📝 Take Attendance", "🏆 Record Scores", "⚙️ First Time Setup"],
+        index=0
+    )
+    st.divider()
+    if st.button("Log Out"):
+        st.session_state.logged_in = False
+        st.rerun()
 
-def get_students(class_id):
-    return conn.table("students").select("id, full_name").eq("class_id", class_id).execute()
-
-# --- NAVIGATION ---
-st.sidebar.title("Menu")
-page = st.sidebar.radio("Navigate to:", ["First Time Setup", "Take Attendance", "Record Scores"])
-
-st.title("Attendance & Grades Pro")
+# --- DASHBOARD PAGE (New Visual Home) ---
+if page == "🏠 Dashboard":
+    st.title("🏫 Classroom Overview")
+    
+    # Quick Stats Row
+    classes_data = get_classes()
+    if classes_data.data:
+        total_classes = len(classes_data.data)
+        
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Classes", total_classes)
+        col2.metric("System Status", "Online", "Ready")
+        col3.metric("Current Term", "2026-Q1")
+        
+        st.divider()
+        st.info("Select a page from the sidebar to start managing your students.")
+    else:
+        st.warning("Welcome! Please go to 'First Time Setup' to add your first class.")
 
 # --- PAGE: SETUP ---
 if page == "First Time Setup":
@@ -198,4 +249,5 @@ elif page == "Record Scores":
                     st.success(f"Successfully saved {category} scores for {selected_class}!")
                 except Exception as e:
                     st.error(f"Failed to save: {e}")
+
 
