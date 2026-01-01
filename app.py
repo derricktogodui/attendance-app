@@ -3,73 +3,113 @@ from st_supabase_connection import SupabaseConnection
 import datetime
 import pandas as pd
 
-# --- 1. PRO PAGE CONFIG ---
+# --- 1. PREMIUM PAGE CONFIG ---
 st.set_page_config(
-    page_title="TrackerAP",
+    page_title="TrackerAP Pro",
     page_icon="🎓",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# Custom CSS for a "Mobile-First" clean look
+# --- 2. ADVANCED CSS (The "Pro" Look) ---
 st.markdown("""
     <style>
-    .main { background-color: #f5f7f9; }
+    /* Background color for the whole app */
+    .stApp {
+        background-color: #f8f9fa;
+    }
+    
+    /* Custom Card Design */
+    div[data-testid="stVerticalBlock"] > div:has(div.card-body) {
+        background-color: white;
+        padding: 2rem;
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+        margin-bottom: 1rem;
+    }
+
+    /* Professional Sidebar */
+    section[data-testid="stSidebar"] {
+        background-color: #1e293b; /* Dark Navy */
+        color: white;
+    }
+    
+    /* Button Styling */
     .stButton>button {
         width: 100%;
-        border-radius: 10px;
-        height: 3em;
-        background-color: #4CAF50;
+        border-radius: 12px;
+        height: 3.5em;
+        background-color: #10b981; /* Emerald Green */
         color: white;
-        font-weight: bold;
+        font-weight: 700;
+        border: none;
+        transition: all 0.3s ease;
     }
-    .stSelectbox, .stDateInput { border-radius: 10px; }
-    div[data-testid="stMetricValue"] { font-size: 28px; color: #4CAF50; }
+    .stButton>button:hover {
+        background-color: #059669;
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
+    }
+
+    /* Navigation Radio Styling */
+    div[data-testid="stSidebarNav"] { padding-top: 2rem; }
+    
+    /* Metric Styling */
+    div[data-testid="stMetric"] {
+        background-color: white;
+        padding: 15px;
+        border-radius: 12px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.03);
+        border-left: 5px solid #3b82f6; /* Blue Accent */
+    }
     </style>
     """, unsafe_allow_html=True)
 
-# 2. Setup Connection
+# 3. Connection & Logic Setup
 conn = st.connection("supabase", type=SupabaseConnection)
 
-# --- 3. HELPER FUNCTIONS (Defined early to avoid errors) ---
-def get_classes():
-    return conn.table("classes").select("id, name").execute()
-
-def get_students(class_id):
-    return conn.table("students").select("id, full_name").eq("class_id", class_id).execute()
-
-# 4. Simple Login Protection
+# --- LOGIN PAGE ENHANCEMENT ---
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
-    st.title("🎓 TrackerAP")
-    st.subheader("Please sign in to continue")
-    with st.container():
-        password = st.text_input("Admin Password", type="password")
-        if st.button("Login to Dashboard"):
-            if password == "admin123":
-                st.session_state.logged_in = True
-                st.rerun()
-            else:
-                st.error("Invalid credentials.")
+    # Center the login box
+    _, col, _ = st.columns([1, 2, 1])
+    with col:
+        st.markdown("<h1 style='text-align: center;'>🎓 TrackerAP</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #64748b;'>Secure Educator Portal</p>", unsafe_allow_html=True)
+        
+        with st.form("login_card"):
+            password = st.text_input("Admin Password", type="password")
+            if st.form_submit_button("Enter Dashboard"):
+                if password == "admin123":
+                    st.session_state.logged_in = True
+                    st.rerun()
+                else:
+                    st.error("Access Denied")
     st.stop()
 
-# --- NAVIGATION ---
+# --- SIDEBAR ENHANCEMENT ---
 with st.sidebar:
-    st.title("🎓 TrackerAP")
-    st.write(f"Logged in as: **Teacher**")
+    st.markdown("<h2 style='color: white;'>🎓 TrackerAP</h2>", unsafe_allow_html=True)
+    st.caption("v2.0 Professional Edition")
     st.divider()
+    
+    # Modern Radio Navigation
     page = st.radio(
-        "Navigation",
-        ["🏠 Dashboard", "📝 Take Attendance", "🏆 Record Scores", "⚙️ First Time Setup"],
+        "MAIN MENU",
+        ["🏠 Dashboard", "📝 Take Attendance", "🏆 Record Scores", "⚙️ Setup"],
         index=0
     )
+    
     st.divider()
-    if st.button("Log Out"):
+    # Sidebar Micro-Metric
+    st.markdown(f"**Current Session**")
+    st.caption(f"📅 {datetime.date.today().strftime('%A, %b %d')}")
+    
+    if st.button("🚪 Log Out"):
         st.session_state.logged_in = False
         st.rerun()
-
 # --- PAGE: DASHBOARD ---
 # --- PAGE: DASHBOARD ---
 if page == "🏠 Dashboard":
@@ -290,5 +330,6 @@ elif page == "🏆 Record Scores":
                     st.success(f"Successfully recorded {category} scores! Average: {edited_df['Points Earned'].mean():.1f}/{max_pts}")
                 except Exception as e:
                     st.error(f"Error saving scores: {e}")
+
 
 
