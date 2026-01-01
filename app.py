@@ -5,7 +5,7 @@ import pandas as pd
 
 # --- 1. PRO PAGE CONFIG ---
 st.set_page_config(
-    page_title="EduTrack Pro",
+    page_title="TrackerAp",
     page_icon="🎓",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -165,3 +165,4 @@ elif page == "🏆 Record Scores":
                     conn.table("scores").insert(records).execute()
                     st.success(f"Saved {category} scores!")
                 except Exception as e: st.error(f"Error: {e}")
+
