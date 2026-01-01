@@ -5,7 +5,7 @@ import pandas as pd
 
 # --- 1. PRO PAGE CONFIG ---
 st.set_page_config(
-    page_title="TrackerAp",
+    page_title="TrackerAP",
     page_icon="🎓",
     layout="wide",
     initial_sidebar_state="expanded",
@@ -43,7 +43,7 @@ if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
-    st.title("🎓 EduTrack Pro")
+    st.title("🎓 TrackerAP")
     st.subheader("Please sign in to continue")
     with st.container():
         password = st.text_input("Admin Password", type="password")
@@ -57,7 +57,7 @@ if not st.session_state.logged_in:
 
 # --- NAVIGATION ---
 with st.sidebar:
-    st.title("🎓 EduTrack")
+    st.title("🎓 TrackerAP")
     st.write(f"Logged in as: **Teacher**")
     st.divider()
     page = st.radio(
@@ -71,20 +71,94 @@ with st.sidebar:
         st.rerun()
 
 # --- PAGE: DASHBOARD ---
+# --- PAGE: DASHBOARD ---
 if page == "🏠 Dashboard":
-    st.title("🏫 Classroom Overview")
-    classes_data = get_classes()
+    st.title("📊 Timeless Insight Dashboard")
     
-    if classes_data.data:
-        total_classes = len(classes_data.data)
+    # 1. Fetch Necessary Data
+    with st.spinner("Analyzing classroom data..."):
+        students_res = conn.table("students").select("id, full_name, class_id").execute()
+        classes_res = conn.table("classes").select("id, name").execute()
+        scores_res = conn.table("scores").select("student_id, score_value, max_score, category").execute()
+        att_res = conn.table("attendance").select("student_id, is_present").execute()
+
+    if not classes_res.data:
+        st.warning("Welcome! Please go to 'First Time Setup' to add your first class.")
+    else:
+        # --- 2. THE TOP METRICS ROW (Your Design) ---
+        total_classes = len(classes_res.data)
         col1, col2, col3 = st.columns(3)
         col1.metric("Total Classes", total_classes, help="Active classes in your profile")
         col2.metric("System Status", "Online", "Ready")
         col3.metric("Current Term", "2026-Q1")
         st.divider()
-        st.info("Welcome back! Select an action from the sidebar to manage your classes.")
-    else:
-        st.warning("Welcome! Please go to 'First Time Setup' to add your first class.")
+
+        if not students_res.data:
+            st.info("Classes are ready. Now upload students in 'First Time Setup' to see analytics.")
+        else:
+            # Convert to DataFrames for analysis
+            df_students = pd.DataFrame(students_res.data)
+            df_classes = pd.DataFrame(classes_res.data)
+            df_scores = pd.DataFrame(scores_res.data) if scores_res.data else pd.DataFrame()
+            df_att = pd.DataFrame(att_res.data) if att_res.data else pd.DataFrame()
+
+            # --- 3. THE "BIG FOUR" CHART TABS ---
+            tab_risk, tab_classes, tab_mastery, tab_projection = st.tabs([
+                "🚩 Intervention (At-Risk)", 
+                "🏫 Class Comparison", 
+                "🎯 Subject Mastery", 
+                "📈 Outcome Projection"
+            ])
+
+            # --- TAB 1: THE RED FLAG MATRIX ---
+            with tab_risk:
+                st.subheader("🎯 Student Success Matrix")
+                if not df_scores.empty and not df_att.empty:
+                    att_stats = df_att.groupby('student_id')['is_present'].mean() * 100
+                    df_scores['pct'] = (df_scores['score_value'] / df_scores['max_score']) * 100
+                    grade_stats = df_scores.groupby('student_id')['pct'].mean()
+                    
+                    analytics = pd.merge(att_stats, grade_stats, on='student_id')
+                    analytics = pd.merge(analytics, df_students.set_index('id'), left_index=True, right_index=True)
+                    analytics.columns = ['Attendance %', 'Average Grade %', 'Student Name', 'class_id']
+                    
+                    st.write("🔍 **Hover over dots to see names.**")
+                    st.scatter_chart(analytics, x="Attendance %", y="Average Grade %", color="#ff4b4b", size="Average Grade %")
+                else:
+                    st.info("Record more attendance and scores to see the Success Matrix.")
+
+            # --- TAB 2: THE CLASS PULSE ---
+            with tab_classes:
+                st.subheader("🏫 Class Performance Comparison")
+                if not df_scores.empty:
+                    df_merged = pd.merge(df_scores, df_students[['id', 'class_id']], left_on='student_id', right_on='id')
+                    df_merged = pd.merge(df_merged, df_classes, left_on='class_id', right_on='id')
+                    class_perf = df_merged.groupby('name')['pct'].mean()
+                    st.bar_chart(class_perf)
+                else:
+                    st.info("No scores recorded yet.")
+
+            # --- TAB 3: SUBJECT MASTERY ---
+            with tab_mastery:
+                st.subheader("📖 Performance by Category")
+                if not df_scores.empty:
+                    cat_perf = df_scores.groupby('category')['pct'].mean().sort_values()
+                    st.bar_chart(cat_perf, horizontal=True)
+                else:
+                    st.info("No category data available.")
+
+            # --- TAB 4: OUTCOME PROJECTION ---
+            with tab_projection:
+                st.subheader("🔮 End-of-Term Prediction")
+                if not df_scores.empty:
+                    # Logic: We use the grade_stats we calculated in Tab 1
+                    bins = [0, 50, 75, 100]
+                    labels = ['At-Risk', 'Passing', 'Excellent']
+                    # Ensure grade_stats is a series for pd.cut
+                    status_dist = pd.cut(grade_stats, bins=bins, labels=labels).value_counts()
+                    st.bar_chart(status_dist)
+                else:
+                    st.info("No scores available for projection.")
 
 # --- PAGE: SETUP ---
 elif page == "⚙️ First Time Setup":
@@ -216,4 +290,5 @@ elif page == "🏆 Record Scores":
                     st.success(f"Successfully recorded {category} scores! Average: {edited_df['Points Earned'].mean():.1f}/{max_pts}")
                 except Exception as e:
                     st.error(f"Error saving scores: {e}")
+
 
