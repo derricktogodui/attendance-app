@@ -112,7 +112,7 @@ with st.sidebar:
 
 # --- PAGE: DASHBOARD ---
 if page == "🏠 Dashboard":
-    st.title("📊 Timeless Insight Dashboard")
+    st.title("📊 Academic Overview")
     
     with st.spinner("Analyzing classroom data..."):
         students_res = conn.table("students").select("id, full_name, class_id").execute()
@@ -146,7 +146,7 @@ if page == "🏠 Dashboard":
             ])
 
             with tab_risk:
-                st.subheader("🎯 Student Success Matrix")
+                st.subheader("🎯 Student Risk Profile")
                 if not df_scores.empty and not df_att.empty:
                     att_stats = df_att.groupby('student_id')['is_present'].mean() * 100
                     df_scores['pct'] = (df_scores['score_value'] / df_scores['max_score']) * 100
@@ -162,7 +162,7 @@ if page == "🏠 Dashboard":
                     st.info("Record more data to see the Matrix.")
 
             with tab_classes:
-                st.subheader("🏫 Class Performance Comparison")
+                st.subheader("🏫 Comparative Class Analytics")
                 if not df_scores.empty:
                     df_merged = pd.merge(df_scores, df_students[['id', 'class_id']], left_on='student_id', right_on='id')
                     df_merged = pd.merge(df_merged, df_classes, left_on='class_id', right_on='id')
@@ -172,7 +172,7 @@ if page == "🏠 Dashboard":
                     st.info("No scores recorded yet.")
 
             with tab_mastery:
-                st.subheader("📖 Performance by Category")
+                st.subheader("📖 Assessment Category Analysis")
                 if not df_scores.empty:
                     cat_perf = df_scores.groupby('category')['pct'].mean().sort_values()
                     st.bar_chart(cat_perf, horizontal=True)
@@ -180,7 +180,7 @@ if page == "🏠 Dashboard":
                     st.info("No category data available.")
 
             with tab_projection:
-                st.subheader("🔮 End-of-Term Prediction")
+                st.subheader("🔮 Projected Grade Distribution")
                 if not df_scores.empty:
                     bins = [0, 50, 75, 100]
                     labels = ['At-Risk', 'Passing', 'Excellent']
@@ -295,4 +295,5 @@ elif page == "🏆 Record Scores":
                     st.success(f"Scores saved! Average: {edited_df['Points Earned'].mean():.1f}/{max_pts}")
                 except Exception as e:
                     st.error(f"Error: {e}")
+
 
