@@ -1,5 +1,6 @@
 import streamlit as st
 from st_supabase_connection import SupabaseConnection
+import datetime
 
 # 1. Setup Connection
 conn = st.connection("supabase", type=SupabaseConnection)
@@ -57,7 +58,7 @@ if page == "First Time Setup":
         
         uploaded_file = st.file_uploader("Upload CSV or Excel (Must have 'name' and 'gender' columns)", type=['csv', 'xlsx'])
         
-       if uploaded_file is not None:
+        if uploaded_file is not None:
             import pandas as pd
             df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
             
@@ -87,6 +88,8 @@ if page == "First Time Setup":
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error during import: {e}")
+    else:
+        st.info("Create a class first.")
 # --- PAGE: ATTENDANCE ---
 elif page == "Take Attendance":
     st.header("📝 Daily Attendance")
@@ -137,6 +140,7 @@ elif page == "Take Attendance":
                 # .upsert handles both new records and updates to existing ones
                 conn.table("attendance").upsert(attendance_results).execute()
                 st.success(f"Attendance for {selected_class} has been saved!")
+
 
 
 
