@@ -98,6 +98,9 @@ elif page == "Take Attendance":
     if not classes_data.data:
         st.warning("Please add a class and students first.")
     else:
+        # 1. Date Selection
+        selected_date = st.date_input("Select Date", datetime.date.today())
+        
         class_map = {c['name']: c['id'] for c in classes_data.data}
         selected_class = st.selectbox("Select Class", list(class_map.keys()))
         students = get_students(class_map[selected_class])
@@ -105,21 +108,16 @@ elif page == "Take Attendance":
         if not students.data:
             st.info("No students enrolled in this class.")
         else:
-            # --- THE FIX: Direct State Manipulation ---
-            # Define the keys for our checkboxes
+            # --- State Manipulation ---
             checkbox_keys = [f"chk_{s['id']}" for s in students.data]
 
-            # 1. Action Buttons
             col1, col2 = st.columns(2)
-            
             if col1.button("✅ Mark All Present"):
-                for k in checkbox_keys:
-                    st.session_state[k] = True
+                for k in checkbox_keys: st.session_state[k] = True
                 st.rerun()
             
             if col2.button("❌ Mark All Absent"):
-                for k in checkbox_keys:
-                    st.session_state[k] = False
+                for k in checkbox_keys: st.session_state[k] = False
                 st.rerun()
 
             st.divider()
@@ -128,25 +126,25 @@ elif page == "Take Attendance":
             attendance_results = []
             for s in students.data:
                 key = f"chk_{s['id']}"
-                
-                # Initialize the key in session state if it doesn't exist
                 if key not in st.session_state:
                     st.session_state[key] = True
                 
-                # The checkbox value is now directly linked to the key
                 is_present = st.checkbox(s['full_name'], key=key)
                 
                 attendance_results.append({
                     "student_id": s['id'], 
                     "is_present": is_present, 
-                    "date": str(datetime.date.today())
+                    "date": str(selected_date) # Uses the date from the calendar
                 })
 
             st.divider()
             
             if st.button("💾 Save Attendance to Supabase"):
+                # .upsert ensures if you change your mind for this date, 
+                # it overwrites the old record instead of duplicating.
                 conn.table("attendance").upsert(attendance_results).execute()
-                st.success(f"Attendance for {len(students.data)} students saved!")
+                st.success(f"Attendance for {selected_class} on {selected_date} saved!")
+
 
 
 
