@@ -57,23 +57,19 @@ if page == "First Time Setup":
         
         uploaded_file = st.file_uploader("Upload CSV or Excel (Must have 'name' and 'gender' columns)", type=['csv', 'xlsx'])
         
-        if uploaded_file is not None:
+       if uploaded_file is not None:
             import pandas as pd
-            # Read the file
-            if uploaded_file.name.endswith('.csv'):
-                df = pd.read_csv(uploaded_file)
-            else:
-                df = pd.read_excel(uploaded_file)
+            df = pd.read_csv(uploaded_file) if uploaded_file.name.endswith('.csv') else pd.read_excel(uploaded_file)
             
-            # --- FIX: Clean headers (handles 'Name', 'name ', 'NAME') ---
+            # Clean headers
             df.columns = df.columns.str.strip().str.lower()
-            
             st.write("Preview of cleaned data:", df.head())
             
             if 'name' not in df.columns:
-                st.error("Column 'name' not found. Ensure your header is exactly 'name'.")
+                st.error("Column 'name' not found.")
             else:
-                if st.button("Import All Students"):
+                # We use a unique key for the button to prevent accidental clicks
+                if st.button("🚀 Import All Students", key="bulk_import_btn"):
                     student_list = []
                     for index, row in df.iterrows():
                         student_list.append({
@@ -82,39 +78,65 @@ if page == "First Time Setup":
                             "gender": row.get('gender', 'Not Specified') 
                         })
                     
-                    conn.table("students").insert(student_list).execute()
-                    st.success(f"Successfully imported {len(student_list)} students!")
-                    st.rerun()
+                    try:
+                        # Using UPSERT instead of INSERT to avoid duplicates
+                        conn.table("students").upsert(student_list, on_conflict="full_name, class_id").execute()
+                        st.success(f"Successfully imported {len(student_list)} students!")
+                        # This clears the file uploader and prevents double-clicking
+                        st.cache_data.clear()
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Error during import: {e}")
 # --- PAGE: ATTENDANCE ---
 elif page == "Take Attendance":
-    st.header("📝 Take Attendance")
-    classes = get_classes()
-    if not classes.data:
-        st.warning("Please add a class first.")
+    st.header("📝 Daily Attendance")
+    
+    classes_data = get_classes()
+    if not classes_data.data:
+        st.warning("Please add a class and students first.")
     else:
-        class_map = {c['name']: c['id'] for c in classes.data}
-        sel_class = st.selectbox("Class", list(class_map.keys()))
-        students = get_students(class_map[sel_class])
+        class_map = {c['name']: c['id'] for c in classes_data.data}
+        selected_class = st.selectbox("Select Class", list(class_map.keys()))
+        
+        students = get_students(class_map[selected_class])
         
         if not students.data:
-            st.info("No students in this class.")
+            st.info("No students enrolled in this class.")
         else:
-            st.write("Check = Present | Uncheck = Absent")
-            # Here is your "Mark All" Logic
-            cols = st.columns(2)
-            if cols[0].button("Select All"):
-                st.session_state.all_checked = True
-            if cols[1].button("Deselect All"):
-                st.session_state.all_checked = False
+            st.write(f"Taking attendance for: **{datetime.date.today()}**")
             
+            # --- THE "MARK ALL" LOGIC ---
+            # We use a toggle button to set the default state for all checkboxes
+            if "all_present" not in st.session_state:
+                st.session_state.all_present = True
+            
+            if st.button("Toggle: Mark All Present/Absent"):
+                st.session_state.all_present = not st.session_state.all_present
+                st.rerun()
+
+            st.divider()
+
+            # Create the list of checkboxes
             attendance_results = []
             for s in students.data:
-                present = st.checkbox(s['full_name'], value=st.session_state.get('all_checked', True), key=s['id'])
-                attendance_results.append({"student_id": s['id'], "is_present": present})
+                # Value is driven by the 'all_present' state
+                is_present = st.checkbox(
+                    s['full_name'], 
+                    value=st.session_state.all_present, 
+                    key=f"check_{s['id']}"
+                )
+                attendance_results.append({
+                    "student_id": s['id'], 
+                    "is_present": is_present, 
+                    "date": str(datetime.date.today())
+                })
+
+            st.divider()
             
-            if st.button("Save to Database"):
+            if st.button("💾 Save Attendance to Supabase"):
+                # .upsert handles both new records and updates to existing ones
                 conn.table("attendance").upsert(attendance_results).execute()
-                st.success("Attendance Recorded!")
+                st.success(f"Attendance for {selected_class} has been saved!")
 
 
 
