@@ -84,7 +84,7 @@ if not st.session_state.logged_in:
         
         # Wrapping inputs in a container for alignment
         with st.container():
-            password = st.text_input("Admin Password", type="password", placeholder="Enter your credentials...")
+            password = st.text_input("Enter Password", type="password", placeholder="Enter your credentials...")
             if st.button("Sign In to Classroom"):
                 if password == "admin123":
                     st.session_state.logged_in = True
@@ -113,7 +113,7 @@ with st.sidebar:
 # --- PAGE: DASHBOARD ---
 # --- PAGE: DASHBOARD (Updated with Pulse & Professional Naming) ---
 if page == "🏠 Dashboard":
-    st.title("🏛️ Academic Management Portal")
+    st.title("🏛️ Academic Overview")
     
     with st.spinner("Analyzing classroom data..."):
         students_res = conn.table("students").select("id, full_name, class_id").execute()
@@ -142,14 +142,14 @@ if page == "🏠 Dashboard":
             # --- THE PROFESSIONAL ANALYTICS TABS ---
             tab_pulse, tab_risk, tab_benchmarking, tab_mastery, tab_outcomes = st.tabs([
                 "📈 Engagement Pulse",
-                "🚩 Support Required", 
-                "🏫 Sectional Benchmarking", 
+                "🚩 At-Risk/Intervention", 
+                "🏫 Comparative Class Analytics", 
                 "📖 Assessment Analysis", 
                 "🔮 Semester Outcomes"
             ])
 
             with tab_pulse:
-                st.subheader("Classroom Engagement Over Time")
+                st.subheader("Attendance Trend")
                 if not df_att.empty:
                     df_att['date'] = pd.to_datetime(df_att['date'])
                     daily_pulse = df_att.groupby('date')['is_present'].mean() * 100
@@ -309,6 +309,7 @@ elif page == "🏆 Record Scores":
                     st.success(f"Scores saved! Average: {edited_df['Points Earned'].mean():.1f}/{max_pts}")
                 except Exception as e:
                     st.error(f"Error: {e}")
+
 
 
 
