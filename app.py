@@ -92,34 +92,63 @@ if page == "First Time Setup":
         st.info("Create a class first.")
 # --- PAGE: ATTENDANCE ---
 elif page == "Take Attendance":
-    st.header("📝 Take Attendance")
-    classes = get_classes()
-    if not classes.data:
-        st.warning("Please add a class first.")
+    st.header("📝 Daily Attendance")
+    classes_data = get_classes()
+    
+    if not classes_data.data:
+        st.warning("No classes found.")
     else:
-        class_map = {c['name']: c['id'] for c in classes.data}
-        sel_class = st.selectbox("Class", list(class_map.keys()))
-        students = get_students(class_map[sel_class])
+        class_map = {c['name']: c['id'] for c in classes_data.data}
+        selected_class = st.selectbox("Select Class", list(class_map.keys()))
+        students = get_students(class_map[selected_class])
         
         if not students.data:
-            st.info("No students in this class.")
+            st.info("No students enrolled.")
         else:
-            st.write("Check = Present | Uncheck = Absent")
-            # Here is your "Mark All" Logic
-            cols = st.columns(2)
-            if cols[0].button("Select All"):
-                st.session_state.all_checked = True
-            if cols[1].button("Deselect All"):
-                st.session_state.all_checked = False
+            # --- IMPROVED STATE MANAGEMENT ---
+            # Create a dictionary in session state to hold attendance status
+            if "att_state" not in st.session_state:
+                st.session_state.att_state = {s['id']: True for s in students.data}
+
+            # Force all to True or False
+            col1, col2 = st.columns(2)
+            if col1.button("✅ Mark All Present"):
+                for s in students.data:
+                    st.session_state.att_state[s['id']] = True
+                st.rerun()
             
+            if col2.button("❌ Mark All Absent"):
+                for s in students.data:
+                    st.session_state.att_state[s['id']] = False
+                st.rerun()
+
+            st.divider()
+
+            # Display Checkboxes
             attendance_results = []
             for s in students.data:
-                present = st.checkbox(s['full_name'], value=st.session_state.get('all_checked', True), key=s['id'])
-                attendance_results.append({"student_id": s['id'], "is_present": present})
+                # Use the session_state dict as the 'value'
+                is_present = st.checkbox(
+                    s['full_name'], 
+                    value=st.session_state.att_state[s['id']], 
+                    key=f"check_{s['id']}_{selected_class}" # Unique key per class
+                )
+                
+                # Update the state dict immediately if the user clicks a checkbox
+                st.session_state.att_state[s['id']] = is_present
+                
+                attendance_results.append({
+                    "student_id": s['id'], 
+                    "is_present": is_present, 
+                    "date": str(datetime.date.today())
+                })
             
-            if st.button("Save to Database"):
+            st.divider()
+            
+            if st.button("💾 Save Attendance to Supabase"):
                 conn.table("attendance").upsert(attendance_results).execute()
-                st.success("Attendance Recorded!")
+                st.success("Attendance saved successfully!")
+
 
 
 
