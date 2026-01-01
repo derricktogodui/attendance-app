@@ -87,74 +87,92 @@ elif page == "Take Attendance":
     classes_data = get_classes()
     
     if not classes_data.data:
-        st.warning("Please add a class and students first.")
+        st.warning("Please add a class first.")
     else:
-        selected_date = st.date_input("Select Date", datetime.date.today())
+        # Date & Class Selection
+        col1, col2 = st.columns(2)
+        selected_date = col1.date_input("Date", datetime.date.today())
         class_map = {c['name']: c['id'] for c in classes_data.data}
-        selected_class = st.selectbox("Select Class", list(class_map.keys()))
+        selected_class = col2.selectbox("Class", list(class_map.keys()))
+        
         students = get_students(class_map[selected_class])
         
         if not students.data:
-            st.info("No students enrolled in this class.")
+            st.info("No students enrolled.")
         else:
-            checkbox_keys = [f"chk_{s['id']}" for s in students.data]
-
-            col1, col2 = st.columns(2)
-            if col1.button("✅ Mark All Present"):
-                for k in checkbox_keys: st.session_state[k] = True
-                st.rerun()
+            # Prepare data for the table
+            df = pd.DataFrame(students.data)
+            df = df[['full_name']].copy()
+            df['Present'] = True # Default to True
             
-            if col2.button("❌ Mark All Absent"):
-                for k in checkbox_keys: st.session_state[k] = False
-                st.rerun()
+            st.write("💡 *Tip: Use the search icon (top right of table) to find a specific name.*")
+            
+            # THE BETTER WAY: st.data_editor
+            # This shows 100 names in a scrollable, searchable box
+            edited_df = st.data_editor(
+                df,
+                column_config={"Present": st.column_config.CheckboxColumn(required=True)},
+                disabled=["full_name"], # Prevent editing names
+                hide_index=True,
+                use_container_width=True
+            )
 
-            st.divider()
-
-            attendance_results = []
-            for s in students.data:
-                key = f"chk_{s['id']}"
-                if key not in st.session_state:
-                    st.session_state[key] = True
+            if st.button("💾 Save Attendance"):
+                final_records = []
+                for i, row in edited_df.iterrows():
+                    final_records.append({
+                        "student_id": students.data[i]['id'],
+                        "is_present": row['Present'],
+                        "date": str(selected_date)
+                    })
                 
-                is_present = st.checkbox(s['full_name'], key=key)
-                attendance_results.append({
-                    "student_id": s['id'], 
-                    "is_present": is_present, 
-                    "date": str(selected_date)
-                })
-
-            st.divider()
-            
-            if st.button("💾 Save Attendance to Supabase"):
-                conn.table("attendance").upsert(attendance_results).execute()
-                st.success(f"Attendance for {selected_class} on {selected_date} saved!")
+                conn.table("attendance").upsert(final_records).execute()
+                st.success(f"Attendance saved for {len(final_records)} students!")
 
 # --- PAGE: SCORES ---
-elif page == "Record Scores":
-    st.header("🏆 Record Class Scores")
+elif page == "Take Attendance":
+    st.header("📝 Daily Attendance")
     classes_data = get_classes()
     
     if not classes_data.data:
         st.warning("Please add a class first.")
     else:
+        # Date & Class Selection
         col1, col2 = st.columns(2)
-        with col1:
-            class_map = {c['name']: c['id'] for c in classes_data.data}
-            selected_class = st.selectbox("Select Class", list(class_map.keys()))
-        with col2:
-            category = st.selectbox("Category", ["Quiz", "Exercise", "Midterm", "Assignment", "Presentation", "Group Work", "Class Participation"])
-
+        selected_date = col1.date_input("Date", datetime.date.today())
+        class_map = {c['name']: c['id'] for c in classes_data.data}
+        selected_class = col2.selectbox("Class", list(class_map.keys()))
+        
         students = get_students(class_map[selected_class])
         
         if not students.data:
-            st.info("No students enrolled in this class.")
+            st.info("No students enrolled.")
         else:
-            with st.form("scores_form", clear_on_submit=True):
-                new_scores = []
-                for s in students.data:
-                    score = st.number_input(f"Score for {s['full_name']}", min_value=0.0, max_value=100.0, step=1.0)
-                    new_scores.append({"student_id": s['id'], "category": category, "score_value": score})
+            # Prepare data for the table
+            df = pd.DataFrame(students.data)
+            df = df[['full_name']].copy()
+            df['Present'] = True # Default to True
+            
+            st.write("💡 *Tip: Use the search icon (top right of table) to find a specific name.*")
+            
+            # THE BETTER WAY: st.data_editor
+            # This shows 100 names in a scrollable, searchable box
+            edited_df = st.data_editor(
+                df,
+                column_config={"Present": st.column_config.CheckboxColumn(required=True)},
+                disabled=["full_name"], # Prevent editing names
+                hide_index=True,
+                use_container_width=True
+            )
+
+            if st.button("💾 Save Attendance"):
+                final_records = []
+                for i, row in edited_df.iterrows():
+                    final_records.append({
+                        "student_id": students.data[i]['id'],
+                        "is_present": row['Present'],
+                        "date": str(selected_date)
+                    })
                 
-                if st.form_submit_button("💾 Save All Scores"):
-                    conn.table("scores").insert(new_scores).execute()
-                    st.success(f"Scores for {category} saved!")
+                conn.table("attendance").upsert(final_records).execute()
+                st.success(f"Attendance saved for {len(final_records)} students!")
