@@ -65,22 +65,26 @@ if page == "First Time Setup":
             else:
                 df = pd.read_excel(uploaded_file)
             
-            st.write("Preview of data:", df.head())
+            # --- FIX: Clean headers (handles 'Name', 'name ', 'NAME') ---
+            df.columns = df.columns.str.strip().str.lower()
             
-            if st.button("Import All Students"):
-                # Prepare data for Supabase
-                student_list = []
-                for index, row in df.iterrows():
-                    student_list.append({
-                        "full_name": row['name'], 
-                        "class_id": class_map[target_class]
-                        # Note: If you want to save gender, we need to add a gender column to your Supabase table first!
-                    })
-                
-                conn.table("students").insert(student_list).execute()
-                st.success(f"Successfully imported {len(student_list)} students!")
-    else:
-        st.info("Create a class first.")
+            st.write("Preview of cleaned data:", df.head())
+            
+            if 'name' not in df.columns:
+                st.error("Column 'name' not found. Ensure your header is exactly 'name'.")
+            else:
+                if st.button("Import All Students"):
+                    student_list = []
+                    for index, row in df.iterrows():
+                        student_list.append({
+                            "full_name": row['name'], 
+                            "class_id": class_map[target_class],
+                            "gender": row.get('gender', 'Not Specified') 
+                        })
+                    
+                    conn.table("students").insert(student_list).execute()
+                    st.success(f"Successfully imported {len(student_list)} students!")
+                    st.rerun()
 # --- PAGE: ATTENDANCE ---
 elif page == "Take Attendance":
     st.header("📝 Take Attendance")
@@ -111,5 +115,6 @@ elif page == "Take Attendance":
             if st.button("Save to Database"):
                 conn.table("attendance").upsert(attendance_results).execute()
                 st.success("Attendance Recorded!")
+
 
 
