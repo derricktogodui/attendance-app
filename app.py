@@ -111,21 +111,22 @@ with st.sidebar:
         st.rerun()
 
 # --- PAGE: DASHBOARD ---
+# --- PAGE: DASHBOARD (Updated with Pulse & Professional Naming) ---
 if page == "🏠 Dashboard":
-    st.title("📊 Academic Overview")
+    st.title("🏛️ Academic Management Portal")
     
     with st.spinner("Analyzing classroom data..."):
         students_res = conn.table("students").select("id, full_name, class_id").execute()
         classes_res = conn.table("classes").select("id, name").execute()
         scores_res = conn.table("scores").select("student_id, score_value, max_score, category").execute()
-        att_res = conn.table("attendance").select("student_id, is_present").execute()
+        att_res = conn.table("attendance").select("student_id, is_present, date").execute()
 
     if not classes_res.data:
         st.warning("Welcome! Please go to 'First Time Setup' to add your first class.")
     else:
         total_classes = len(classes_res.data)
         col1, col2, col3 = st.columns(3)
-        col1.metric("Total Classes", total_classes, help="Active classes in your profile")
+        col1.metric("Active Sections", total_classes)
         col2.metric("System Status", "Online", "Ready")
         col3.metric("Current Term", "2026-Q1")
         st.divider()
@@ -138,15 +139,27 @@ if page == "🏠 Dashboard":
             df_scores = pd.DataFrame(scores_res.data) if scores_res.data else pd.DataFrame()
             df_att = pd.DataFrame(att_res.data) if att_res.data else pd.DataFrame()
 
-            tab_risk, tab_classes, tab_mastery, tab_projection = st.tabs([
-                "🚩 Intervention (At-Risk)", 
-                "🏫 Class Comparison", 
-                "🎯 Subject Mastery", 
-                "📈 Outcome Projection"
+            # --- THE PROFESSIONAL ANALYTICS TABS ---
+            tab_pulse, tab_risk, tab_benchmarking, tab_mastery, tab_outcomes = st.tabs([
+                "📈 Engagement Pulse",
+                "🚩 Support Required", 
+                "🏫 Sectional Benchmarking", 
+                "📖 Assessment Analysis", 
+                "🔮 Semester Outcomes"
             ])
 
+            with tab_pulse:
+                st.subheader("Classroom Engagement Over Time")
+                if not df_att.empty:
+                    df_att['date'] = pd.to_datetime(df_att['date'])
+                    daily_pulse = df_att.groupby('date')['is_present'].mean() * 100
+                    st.line_chart(daily_pulse)
+                    st.caption("Percentage of student presence logged across all sections.")
+                else:
+                    st.info("Log your first attendance to view the Engagement Pulse.")
+
             with tab_risk:
-                st.subheader("🎯 Student Risk Profile")
+                st.subheader("Engagement & Achievement Correlation")
                 if not df_scores.empty and not df_att.empty:
                     att_stats = df_att.groupby('student_id')['is_present'].mean() * 100
                     df_scores['pct'] = (df_scores['score_value'] / df_scores['max_score']) * 100
@@ -156,38 +169,39 @@ if page == "🏠 Dashboard":
                     analytics = pd.merge(analytics, df_students.set_index('id'), left_index=True, right_index=True)
                     analytics.columns = ['Attendance %', 'Average Grade %', 'Student Name', 'class_id']
                     
-                    st.write("🔍 **Hover over dots to see names.**")
+                    st.write("🔍 **Hover over dots to see individual student names.**")
                     st.scatter_chart(analytics, x="Attendance %", y="Average Grade %", color="#ff4b4b", size="Average Grade %")
                 else:
-                    st.info("Record more data to see the Matrix.")
+                    st.info("Awaiting combined attendance and assessment data to generate risk profiles.")
 
-            with tab_classes:
-                st.subheader("🏫 Comparative Class Analytics")
+            with tab_benchmarking:
+                st.subheader("Inter-Sectional Performance Review")
                 if not df_scores.empty:
                     df_merged = pd.merge(df_scores, df_students[['id', 'class_id']], left_on='student_id', right_on='id')
                     df_merged = pd.merge(df_merged, df_classes, left_on='class_id', right_on='id')
                     class_perf = df_merged.groupby('name')['pct'].mean()
                     st.bar_chart(class_perf)
                 else:
-                    st.info("No scores recorded yet.")
+                    st.info("Comparative data available once assessments are recorded.")
 
             with tab_mastery:
-                st.subheader("📖 Assessment Category Analysis")
+                st.subheader("Curriculum Mastery Breakdown")
                 if not df_scores.empty:
                     cat_perf = df_scores.groupby('category')['pct'].mean().sort_values()
                     st.bar_chart(cat_perf, horizontal=True)
                 else:
-                    st.info("No category data available.")
+                    st.info("Record assessment scores to view mastery by category.")
 
-            with tab_projection:
-                st.subheader("🔮 Projected Grade Distribution")
+            with tab_outcomes:
+                st.subheader("Projected Summative Results")
                 if not df_scores.empty:
                     bins = [0, 50, 75, 100]
-                    labels = ['At-Risk', 'Passing', 'Excellent']
+                    labels = ['Support Required', 'Progressing', 'Excellence']
+                    # Use grade_stats from the Matrix tab logic
                     status_dist = pd.cut(grade_stats, bins=bins, labels=labels).value_counts()
                     st.bar_chart(status_dist)
                 else:
-                    st.info("No scores available.")
+                    st.info("Summative forecasts require active assessment data.")
 
 # --- PAGE: SETUP ---
 elif page == "⚙️ First Time Setup":
@@ -295,5 +309,6 @@ elif page == "🏆 Record Scores":
                     st.success(f"Scores saved! Average: {edited_df['Points Earned'].mean():.1f}/{max_pts}")
                 except Exception as e:
                     st.error(f"Error: {e}")
+
 
 
