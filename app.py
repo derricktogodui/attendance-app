@@ -3,90 +3,71 @@ from st_supabase_connection import SupabaseConnection
 import datetime
 import pandas as pd
 
-# --- 1. PREMIUM PAGE CONFIG ---
+# --- 1. PRO PAGE CONFIG ---
 st.set_page_config(
-    page_title="TrackerAP Pro",
+    page_title="TrackerAP",
     page_icon="🎓",
     layout="wide",
     initial_sidebar_state="expanded",
 )
 
-# --- 2. ADVANCED CSS (The "Pro" Look) ---
+# Custom CSS for a "Mobile-First" clean look
 st.markdown("""
     <style>
-    /* Background color for the whole app */
-    .stApp {
-        background-color: #f8f9fa;
+    /* Background for the main page */
+    .main { background-color: #f5f7f9; }
+    
+    /* FIX: Explicitly set Sidebar colors to ensure visibility */
+    [data-testid="stSidebar"] {
+        background-color: #ffffff; /* White background */
+        border-right: 1px solid #e6e9ef;
     }
     
-    /* Custom Card Design */
-    div[data-testid="stVerticalBlock"] > div:has(div.card-body) {
-        background-color: white;
-        padding: 2rem;
-        border-radius: 15px;
-        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
-        margin-bottom: 1rem;
+    /* FIX: Ensure Sidebar text and radio labels are dark/visible */
+    [data-testid="stSidebar"] .stText, 
+    [data-testid="stSidebar"] label, 
+    [data-testid="stSidebar"] .stMarkdown {
+        color: #1e293b !important;
     }
 
-    /* Professional Sidebar */
-    section[data-testid="stSidebar"] {
-        background-color: #1e293b; /* Dark Navy */
-        color: white;
-    }
-    
-    /* Button Styling */
     .stButton>button {
         width: 100%;
-        border-radius: 12px;
-        height: 3.5em;
-        background-color: #10b981; /* Emerald Green */
+        border-radius: 10px;
+        height: 3em;
+        background-color: #4CAF50;
         color: white;
-        font-weight: 700;
-        border: none;
-        transition: all 0.3s ease;
+        font-weight: bold;
     }
-    .stButton>button:hover {
-        background-color: #059669;
-        transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(16, 185, 129, 0.3);
-    }
-
-    /* Navigation Radio Styling */
-    div[data-testid="stSidebarNav"] { padding-top: 2rem; }
-    
-    /* Metric Styling */
-    div[data-testid="stMetric"] {
-        background-color: white;
-        padding: 15px;
-        border-radius: 12px;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.03);
-        border-left: 5px solid #3b82f6; /* Blue Accent */
-    }
+    .stSelectbox, .stDateInput { border-radius: 10px; }
+    div[data-testid="stMetricValue"] { font-size: 28px; color: #4CAF50; }
     </style>
     """, unsafe_allow_html=True)
 
-# 3. Connection & Logic Setup
+# 2. Setup Connection
 conn = st.connection("supabase", type=SupabaseConnection)
 
-# --- LOGIN PAGE ENHANCEMENT ---
+# --- 3. HELPER FUNCTIONS ---
+def get_classes():
+    return conn.table("classes").select("id, name").execute()
+
+def get_students(class_id):
+    return conn.table("students").select("id, full_name").eq("class_id", class_id).execute()
+
+# 4. Simple Login Protection
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
-    # Center the login box
-    _, col, _ = st.columns([1, 2, 1])
-    with col:
-        st.markdown("<h1 style='text-align: center;'>🎓 TrackerAP</h1>", unsafe_allow_html=True)
-        st.markdown("<p style='text-align: center; color: #64748b;'>Secure Educator Portal</p>", unsafe_allow_html=True)
-        
-        with st.form("login_card"):
-            password = st.text_input("Admin Password", type="password")
-            if st.form_submit_button("Enter Dashboard"):
-                if password == "admin123":
-                    st.session_state.logged_in = True
-                    st.rerun()
-                else:
-                    st.error("Access Denied")
+    st.title("🎓 TrackerAP")
+    st.subheader("Please sign in to continue")
+    with st.container():
+        password = st.text_input("Admin Password", type="password")
+        if st.button("Login to Dashboard"):
+            if password == "admin123":
+                st.session_state.logged_in = True
+                st.rerun()
+            else:
+                st.error("Invalid credentials.")
     st.stop()
 
 # --- NAVIGATION ---
@@ -289,4 +270,3 @@ elif page == "🏆 Record Scores":
                     st.success(f"Scores saved! Average: {edited_df['Points Earned'].mean():.1f}/{max_pts}")
                 except Exception as e:
                     st.error(f"Error: {e}")
-
