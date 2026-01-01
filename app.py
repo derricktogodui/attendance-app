@@ -17,13 +17,12 @@ st.markdown("""
     /* Background for the main page */
     .main { background-color: #f5f7f9; }
     
-    /* FIX: Explicitly set Sidebar colors to ensure visibility */
+    /* Sidebar Visibility Fix */
     [data-testid="stSidebar"] {
-        background-color: #ffffff; /* White background */
+        background-color: #ffffff;
         border-right: 1px solid #e6e9ef;
     }
     
-    /* FIX: Ensure Sidebar text and radio labels are dark/visible */
     [data-testid="stSidebar"] .stText, 
     [data-testid="stSidebar"] label, 
     [data-testid="stSidebar"] .stMarkdown {
@@ -40,6 +39,20 @@ st.markdown("""
     }
     .stSelectbox, .stDateInput { border-radius: 10px; }
     div[data-testid="stMetricValue"] { font-size: 28px; color: #4CAF50; }
+    
+    /* School Theme Text Styling */
+    .school-header {
+        text-align: center;
+        color: #1e293b;
+        font-family: 'Serif';
+        margin-bottom: 0px;
+    }
+    .school-subtitle {
+        text-align: center;
+        color: #64748b;
+        font-size: 1.1em;
+        margin-bottom: 20px;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -53,21 +66,33 @@ def get_classes():
 def get_students(class_id):
     return conn.table("students").select("id, full_name").eq("class_id", class_id).execute()
 
-# 4. Simple Login Protection
+# --- 4. CENTERED LOGIN PAGE ---
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
 
 if not st.session_state.logged_in:
-    st.title("🎓 TrackerAP")
-    st.subheader("Please sign in to continue")
-    with st.container():
-        password = st.text_input("Admin Password", type="password")
-        if st.button("Login to Dashboard"):
-            if password == "admin123":
-                st.session_state.logged_in = True
-                st.rerun()
-            else:
-                st.error("Invalid credentials.")
+    # This CSS hides the sidebar only on the login screen
+    st.markdown("<style> [data-testid='stSidebar'] { display: none; } </style>", unsafe_allow_html=True)
+
+    # Creating three columns: Left (1), Middle (2), Right (1)
+    _, center_col, _ = st.columns([1, 2, 1])
+
+    with center_col:
+        st.markdown("<h1 class='school-header'>🎓 TrackerAP</h1>", unsafe_allow_html=True)
+        st.markdown("<p class='school-subtitle'>Teacher Management Portal</p>", unsafe_allow_html=True)
+        st.divider()
+        
+        # Wrapping inputs in a container for alignment
+        with st.container():
+            password = st.text_input("Admin Password", type="password", placeholder="Enter your credentials...")
+            if st.button("Sign In to Classroom"):
+                if password == "admin123":
+                    st.session_state.logged_in = True
+                    st.rerun()
+                else:
+                    st.error("Invalid credentials. Please contact your administrator.")
+        
+        st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 0.8em; margin-top: 50px;'>© 2026 Academic Tracking System</p>", unsafe_allow_html=True)
     st.stop()
 
 # --- NAVIGATION ---
@@ -270,3 +295,4 @@ elif page == "🏆 Record Scores":
                     st.success(f"Scores saved! Average: {edited_df['Points Earned'].mean():.1f}/{max_pts}")
                 except Exception as e:
                     st.error(f"Error: {e}")
+
