@@ -145,24 +145,75 @@ elif page == "📝 Take Attendance":
 elif page == "🏆 Record Scores":
     st.header("🏆 Record Class Scores")
     classes_data = get_classes()
-    if not classes_data.data: st.warning("Please add a class first.")
+    
+    if not classes_data.data:
+        st.warning("Please add a class first.")
     else:
-        col1, col2 = st.columns(2)
-        score_date = col1.date_input("Date of Activity", datetime.date.today())
+        # 1. Configuration Header
+        col1, col2, col3 = st.columns([2, 2, 1])
+        score_date = col1.date_input("Date", datetime.date.today())
         category = col2.selectbox("Category", ["Quiz", "Exercise", "Midterm", "Assignment", "Presentation", "Group Work", "Class Participation"])
+        
+        # THIS IS THE FIX: Set the "Out of" value here
+        max_pts = col3.number_input("Max Points", min_value=1.0, value=10.0, step=1.0)
+        
         class_map = {c['name']: c['id'] for c in classes_data.data}
         selected_class = st.selectbox("Select Class", list(class_map.keys()))
-        students = get_students(class_map[selected_class]).data
         
-        if not students: st.info("No students enrolled.")
+        students_res = get_students(class_map[selected_class])
+        students = students_res.data
+        
+        if not students:
+            st.info("No students enrolled.")
         else:
-            df_scores = pd.DataFrame(students)[['full_name']].rename(columns={'full_name': 'Student Name'})
-            df_scores['Score (0-100)'] = 0.0
-            edited_df = st.data_editor(df_scores, column_config={"Score (0-100)": st.column_config.NumberColumn("Score", min_value=0, max_value=100, format="%d")}, disabled=["Student Name"], hide_index=True, use_container_width=True)
+            st.write(f"### Recording: {category} (Total: {max_pts} pts)")
+            
+            # 2. Prepare the Table
+            data = []
+            for s in students:
+                data.append({
+                    "ID": s['id'], 
+                    "Student Name": s['full_name'], 
+                    "Points Earned": 0.0
+                })
+            
+            df_scores = pd.DataFrame(data)
+
+            # 3. Searchable Data Entry
+            edited_df = st.data_editor(
+                df_scores,
+                column_config={
+                    "ID": None, # Hide ID
+                    "Points Earned": st.column_config.NumberColumn(
+                        label=f"Points (max {max_pts})",
+                        min_value=0.0, 
+                        max_value=float(max_pts), 
+                        format="%.1f"
+                    )
+                },
+                disabled=["Student Name"],
+                hide_index=True,
+                use_container_width=True
+            )
+            
+            # 4. Save Button
             if st.button("💾 Save All Scores"):
-                records = [{"student_id": students[i]['id'], "category": category, "score_value": row['Score (0-100)'], "recorded_at": str(score_date)} for i, row in edited_df.iterrows()]
+                score_records = []
+                for _, row in edited_df.iterrows():
+                    # Calculate percentage for the database (optional but helpful)
+                    percentage = (row['Points Earned'] / max_pts) * 100
+                    
+                    score_records.append({
+                        "student_id": row['ID'],
+                        "category": category,
+                        "score_value": row['Points Earned'],
+                        "max_score": max_pts,
+                        "recorded_at": str(score_date)
+                    })
+                
                 try:
-                    conn.table("scores").insert(records).execute()
-                    st.success(f"Saved {category} scores!")
-                except Exception as e: st.error(f"Error: {e}")
+                    conn.table("scores").insert(score_records).execute()
+                    st.success(f"Successfully recorded {category} scores! Average: {edited_df['Points Earned'].mean():.1f}/{max_pts}")
+                except Exception as e:
+                    st.error(f"Error saving scores: {e}")
 
