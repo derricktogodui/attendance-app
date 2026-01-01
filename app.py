@@ -1,63 +1,89 @@
 import streamlit as st
 from st_supabase_connection import SupabaseConnection
 
-# 1. Connection with Error Handling
-try:
-    conn = st.connection("supabase", type=SupabaseConnection)
-    st.success("✅ Connection to Supabase is active!")
-except Exception as e:
-    st.error(f"❌ Connection Failed. Check your Secrets. Error: {e}")
-    st.stop() # Stops the app here if keys are wrong
+# 1. Setup Connection
+conn = st.connection("supabase", type=SupabaseConnection)
 
-st.title("Attendance & Grades Pro")
+# 2. Simple Login Protection
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
 
-# 2. Navigation Sidebar
+if not st.session_state.logged_in:
+    st.title("🔒 Teacher Login")
+    password = st.text_input("Enter Admin Password", type="password")
+    if st.button("Login"):
+        if password == "admin123": # Change this to your preferred password!
+            st.session_state.logged_in = True
+            st.rerun()
+        else:
+            st.error("Wrong password")
+    st.stop() # Stops the rest of the app from loading
+
+# --- REST OF THE APP (Only shows if logged in) ---
+
 st.sidebar.title("Menu")
 page = st.sidebar.radio("Navigate to:", ["First Time Setup", "Take Attendance", "Record Scores"])
 
-# --- PAGE 1: SETUP (Do this first!) ---
+st.title("Attendance & Grades Pro")
+
+# --- FIXED QUERY LOGIC ---
+# We use .table().select() instead of .query() to avoid the AttributeError
+def get_classes():
+    return conn.table("classes").select("id, name").execute()
+
+def get_students(class_id):
+    return conn.table("students").select("id, full_name").eq("class_id", class_id).execute()
+
+# --- PAGE: SETUP ---
 if page == "First Time Setup":
     st.header("1️⃣ Add a Class")
-    st.info("You must add a class before you can add students.")
-    
-    with st.form("add_class_form"):
-        new_class = st.text_input("Enter Class Name (e.g. Science 101)")
-        if st.form_submit_button("Create Class"):
+    with st.form("add_class"):
+        new_class = st.text_input("Class Name")
+        if st.form_submit_button("Create"):
             conn.table("classes").insert({"name": new_class}).execute()
-            st.success(f"Class '{new_class}' created!")
+            st.success("Done!")
+            st.rerun()
 
     st.divider()
-
-    st.header("2️⃣ Add Students")
-    # Fetch classes to show in dropdown
-    classes = conn.query("id, name", table="classes").execute()
     
-    if not classes.data:
-        st.warning("No classes found. Add a class above first.")
-    else:
-        class_options = {c['name']: c['id'] for c in classes.data}
-        selected_c = st.selectbox("Select Class", list(class_options.keys()))
-        
-        with st.form("add_student_form"):
-            s_name = st.text_input("Student Full Name")
-            if st.form_submit_button("Add Student"):
-                conn.table("students").insert({
-                    "full_name": s_name, 
-                    "class_id": class_options[selected_c]
-                }).execute()
-                st.success(f"Added {s_name} to {selected_c}!")
+    classes = get_classes()
+    if classes.data:
+        st.header("2️⃣ Add Students")
+        class_map = {c['name']: c['id'] for c in classes.data}
+        sel_c = st.selectbox("Select Class", list(class_map.keys()))
+        with st.form("add_student"):
+            s_name = st.text_input("Student Name")
+            if st.form_submit_button("Enroll"):
+                conn.table("students").insert({"full_name": s_name, "class_id": class_map[sel_c]}).execute()
+                st.success("Enrolled!")
 
-# --- PAGE 2: ATTENDANCE ---
+# --- PAGE: ATTENDANCE ---
 elif page == "Take Attendance":
-    st.header("📝 Attendance")
-    # This will be blank until you do 'Step 1'
-    classes = conn.query("id, name", table="classes").execute()
+    st.header("📝 Take Attendance")
+    classes = get_classes()
     if not classes.data:
-        st.error("No data! Go to 'First Time Setup' in the sidebar.")
+        st.warning("Please add a class first.")
     else:
-        st.write("Once you add students, they will appear here as checkboxes.")
-
-# --- PAGE 3: SCORES ---
-else:
-    st.header("🏆 Scores")
-    st.write("Once you have students, you can record Quiz, Midterm, etc. here.")
+        class_map = {c['name']: c['id'] for c in classes.data}
+        sel_class = st.selectbox("Class", list(class_map.keys()))
+        students = get_students(class_map[sel_class])
+        
+        if not students.data:
+            st.info("No students in this class.")
+        else:
+            st.write("Check = Present | Uncheck = Absent")
+            # Here is your "Mark All" Logic
+            cols = st.columns(2)
+            if cols[0].button("Select All"):
+                st.session_state.all_checked = True
+            if cols[1].button("Deselect All"):
+                st.session_state.all_checked = False
+            
+            attendance_results = []
+            for s in students.data:
+                present = st.checkbox(s['full_name'], value=st.session_state.get('all_checked', True), key=s['id'])
+                attendance_results.append({"student_id": s['id'], "is_present": present})
+            
+            if st.button("Save to Database"):
+                conn.table("attendance").upsert(attendance_results).execute()
+                st.success("Attendance Recorded!")
