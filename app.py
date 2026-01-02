@@ -68,20 +68,19 @@ def get_students(class_id):
 
 def upload_student_photo(file, student_id):
     file_ext = file.name.split('.')[-1]
-    file_path = f"{student_id}.{file_ext}" # Save as "123.jpg"
+    file_path = f"{student_id}.{file_ext}"
     
-    # Upload to Supabase Storage
-    # Note: We use upsert=True so if you upload a new one, it replaces the old one
-    res = conn.storage.from_("student_photos").upload(
+    # FIX: Use conn.client.storage instead of conn.storage
+    conn.client.storage.from_("student_photos").upload(
         path=file_path,
         file=file.getvalue(),
         file_options={"upsert": "true", "content-type": f"image/{file_ext}"}
     )
     
-    # Get the Public URL of the uploaded file
-    public_url = conn.storage.from_("student_photos").get_public_url(file_path)
+    # FIX: Use conn.client.storage here as well
+    public_url = conn.client.storage.from_("student_photos").get_public_url(file_path)
     
-    # Update the student's record in the database
+    # Update the database table
     conn.table("students").update({"photo_url": public_url}).eq("id", student_id).execute()
     return public_url
 
@@ -476,6 +475,7 @@ elif page == "👤 Student Profile":
                 st.dataframe(df_s_att[['date', 'Status']].sort_values('date', ascending=False), use_container_width=True, hide_index=True)
             else:
                 st.write("No attendance logs found.")
+
 
 
 
