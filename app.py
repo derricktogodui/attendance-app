@@ -112,11 +112,12 @@ with st.sidebar:
 
 # --- PAGE: DASHBOARD ---
 # --- PAGE: DASHBOARD (Updated with Pulse & Professional Naming) ---
+# --- PAGE: DASHBOARD ---
 if page == "🏠 Dashboard":
     st.title("🏛️ Academic Overview")
     
     with st.spinner("Analyzing classroom data..."):
-        students_res = conn.table("students").select("id, full_name, class_id").execute()
+        students_res = conn.table("students").select("id, full_name, class_id, gender").execute()
         classes_res = conn.table("classes").select("id, name").execute()
         scores_res = conn.table("scores").select("student_id, score_value, max_score, category").execute()
         att_res = conn.table("attendance").select("student_id, is_present, date").execute()
@@ -124,162 +125,105 @@ if page == "🏠 Dashboard":
     if not classes_res.data:
         st.warning("Welcome! Please go to 'First Time Setup' to add your first class.")
     else:
-        # --- 2. ADVANCED METRIC CALCULATIONS ---
-        total_classes = len(classes_res.data)
-        total_students = len(students_res.data) if students_res.data else 0
+        # STEP 1: DEFINE DATAFRAMES FIRST (This fixes the NameError)
+        df_students = pd.DataFrame(students_res.data) if students_res.data else pd.DataFrame()
+        df_classes = pd.DataFrame(classes_res.data) if classes_res.data else pd.DataFrame()
+        df_scores = pd.DataFrame(scores_res.data) if scores_res.data else pd.DataFrame()
+        df_att = pd.DataFrame(att_res.data) if att_res.data else pd.DataFrame()
+
+        # STEP 2: CALCULATE METRICS
+        total_classes = len(df_classes)
+        total_students = len(df_students)
         
-        # A. Calculate Gender Split
-        if total_students > 0:
+        # Gender Logic
+        if not df_students.empty and 'gender' in df_students.columns:
+            # We use .get() or check values to be safe
             boys = len(df_students[df_students['gender'].str.lower() == 'boy'])
             girls = len(df_students[df_students['gender'].str.lower() == 'girl'])
             gender_text = f"👦 {boys} | 👧 {girls}"
         else:
             gender_text = "No Data"
 
-        # B. Calculate Weekly Attendance %
+        # Weekly Attendance Logic
+        att_display = "No logs"
         if not df_att.empty:
             df_att['date'] = pd.to_datetime(df_att['date']).dt.date
             one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
             weekly_data = df_att[df_att['date'] >= one_week_ago]
             if not weekly_data.empty:
-                weekly_att_pct = weekly_data['is_present'].mean() * 100
-                att_display = f"{weekly_att_pct:.1f}%"
-            else:
-                att_display = "No logs this week"
-        else:
-            att_display = "No logs"
+                att_display = f"{weekly_data['is_present'].mean() * 100:.1f}%"
 
-        # C. Calculate Priority Support (Red Flags)
-        # Logic: Attendance < 50% AND Grade < 50%
+        # Red Flag Logic
         red_flags = 0
         if not df_scores.empty and not df_att.empty:
             att_means = df_att.groupby('student_id')['is_present'].mean() * 100
             df_scores['pct'] = (df_scores['score_value'] / df_scores['max_score']) * 100
             grade_means = df_scores.groupby('student_id')['pct'].mean()
-            
             combined = pd.merge(att_means, grade_means, on='student_id')
             red_flags = len(combined[(combined['is_present'] < 50) & (combined['pct'] < 50)])
 
-        # --- D. THE NEW METRIC GRID (Visuals) ---
-        # CSS for the Premium Metric Cards
+        # STEP 3: DISPLAY METRIC GRID
         st.markdown("""
             <style>
             .metric-container {
-                background-color: white;
-                padding: 15px;
-                border-radius: 12px;
-                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-                border-bottom: 3px solid #4CAF50;
-                text-align: center;
-                margin-bottom: 10px;
+                background-color: white; padding: 15px; border-radius: 12px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-bottom: 3px solid #4CAF50;
+                text-align: center; margin-bottom: 10px;
             }
             .m-label { color: #64748b; font-size: 0.8em; font-weight: bold; text-transform: uppercase; }
             .m-value { color: #1e293b; font-size: 1.4em; font-weight: 800; }
             </style>
         """, unsafe_allow_html=True)
 
-        row1_col1, row1_col2, row1_col3, row1_col4 = st.columns(4)
-        
-        with row1_col1:
-            st.markdown(f'<div class="metric-container"><div class="m-label">Total Enrollment</div><div class="m-value">{total_students}</div></div>', unsafe_allow_html=True)
-        with row1_col2:
-            st.markdown(f'<div class="metric-container"><div class="m-label">Gender Balance</div><div class="m-value" style="font-size: 1.1em;">{gender_text}</div></div>', unsafe_allow_html=True)
-        with row1_col3:
-            st.markdown(f'<div class="metric-container"><div class="m-label">Weekly Presence</div><div class="m-value">{att_display}</div></div>', unsafe_allow_html=True)
-        with row1_col4:
-            color = "#ff4b4b" if red_flags > 0 else "#1e293b"
-            st.markdown(f'<div class="metric-container"><div class="m-label">Priority Support</div><div class="m-value" style="color: {color};">{red_flags} Students</div></div>', unsafe_allow_html=True)
+        m_col1, m_col2, m_col3, m_col4 = st.columns(4)
+        with m_col1: st.markdown(f'<div class="metric-container"><div class="m-label">Total Enrollment</div><div class="m-value">{total_students}</div></div>', unsafe_allow_html=True)
+        with m_col2: st.markdown(f'<div class="metric-container"><div class="m-label">Gender Balance</div><div class="m-value">{gender_text}</div></div>', unsafe_allow_html=True)
+        with m_col3: st.markdown(f'<div class="metric-container"><div class="m-label">Weekly Presence</div><div class="m-value">{att_display}</div></div>', unsafe_allow_html=True)
+        with m_col4: 
+            f_color = "#ff4b4b" if red_flags > 0 else "#1e293b"
+            st.markdown(f'<div class="metric-container"><div class="m-label">Priority Support</div><div class="m-value" style="color: {f_color};">{red_flags} Students</div></div>', unsafe_allow_html=True)
 
-        row2_col1, row2_col2, row2_col3 = st.columns(3)
-        row2_col1.metric("Active Classes", total_classes)
-        row2_col2.metric("System Status", "Online", "Ready")
-        row2_col3.metric("Current Term", "2026-Q1")
-        
+        s_col1, s_col2, s_col3 = st.columns(3)
+        s_col1.metric("Active Classes", total_classes)
+        s_col2.metric("System Status", "Online", "Ready")
+        s_col3.metric("Current Term", "2026-Q1")
         st.divider()
 
-        if not students_res.data:
+        # STEP 4: DISPLAY TABS
+        if total_students == 0:
             st.info("Classes are ready. Now upload students in 'First Time Setup' to see analytics.")
         else:
-            # --- MOVE THIS HERE (The Fix) ---
-            df_students = pd.DataFrame(students_res.data) if students_res.data else pd.DataFrame()
-            df_classes = pd.DataFrame(classes_res.data) if classes_res.data else pd.DataFrame()
-            df_scores = pd.DataFrame(scores_res.data) if scores_res.data else pd.DataFrame()
-            df_att = pd.DataFrame(att_res.data) if att_res.data else pd.DataFrame()
-
-            # Now your metrics can safely use df_students
-            total_classes = len(classes_res.data)
-            total_students = len(df_students)
-        
-            # Gender Logic
-            if not df_students.empty and 'gender' in df_students.columns:
-                boys = len(df_students[df_students['gender'].str.lower() == 'boy'])
-                girls = len(df_students[df_students['gender'].str.lower() == 'girl'])
-                gender_text = f"👦 {boys} | 👧 {girls}"
-            else:
-                gender_text = "No Data"
-            # --- THE PROFESSIONAL ANALYTICS TABS ---
-            tab_pulse, tab_risk, tab_benchmarking, tab_mastery, tab_outcomes = st.tabs([
-                "📈 Engagement Pulse",
-                "🚩 At-Risk/Intervention", 
-                "🏫 Comparative Class Analytics", 
-                "📖 Assessment Analysis", 
-                "🔮 Semester Outcomes"
-            ])
-
-            with tab_pulse:
-                st.subheader("Attendance Trend")
+            tabs = st.tabs(["📈 Engagement Pulse", "🚩 At-Risk/Intervention", "🏫 Comparative Class Analytics", "📖 Assessment Analysis", "🔮 Semester Outcomes"])
+            
+            with tabs[0]:
                 if not df_att.empty:
-                    df_att['date'] = pd.to_datetime(df_att['date'])
-                    daily_pulse = df_att.groupby('date')['is_present'].mean() * 100
-                    st.line_chart(daily_pulse)
-                    st.caption("Percentage of student presence logged across all sections.")
-                else:
-                    st.info("Log your first attendance to view the Engagement Pulse.")
+                    daily = df_att.groupby('date')['is_present'].mean() * 100
+                    st.line_chart(daily)
+                else: st.info("No attendance data recorded.")
 
-            with tab_risk:
-                st.subheader("Engagement & Achievement Correlation")
+            with tabs[1]:
                 if not df_scores.empty and not df_att.empty:
-                    att_stats = df_att.groupby('student_id')['is_present'].mean() * 100
-                    df_scores['pct'] = (df_scores['score_value'] / df_scores['max_score']) * 100
-                    grade_stats = df_scores.groupby('student_id')['pct'].mean()
-                    
-                    analytics = pd.merge(att_stats, grade_stats, on='student_id')
+                    # Logic is already calculated above in red_flags section
+                    analytics = pd.merge(att_means, grade_means, on='student_id')
                     analytics = pd.merge(analytics, df_students.set_index('id'), left_index=True, right_index=True)
-                    analytics.columns = ['Attendance %', 'Average Grade %', 'Student Name', 'class_id']
-                    
-                    st.write("🔍 **Hover over dots to see individual student names.**")
-                    st.scatter_chart(analytics, x="Attendance %", y="Average Grade %", color="#ff4b4b", size="Average Grade %")
-                else:
-                    st.info("Awaiting combined attendance and assessment data to generate risk profiles.")
+                    st.scatter_chart(analytics, x="is_present", y="pct", color="#ff4b4b")
+                else: st.info("More data needed for correlation analysis.")
 
-            with tab_benchmarking:
-                st.subheader("Inter-Sectional Performance Review")
+            with tabs[2]:
                 if not df_scores.empty:
-                    df_merged = pd.merge(df_scores, df_students[['id', 'class_id']], left_on='student_id', right_on='id')
-                    df_merged = pd.merge(df_merged, df_classes, left_on='class_id', right_on='id')
-                    class_perf = df_merged.groupby('name')['pct'].mean()
-                    st.bar_chart(class_perf)
-                else:
-                    st.info("Comparative data available once assessments are recorded.")
+                    merged = pd.merge(df_scores, df_students[['id', 'class_id']], left_on='student_id', right_on='id')
+                    merged = pd.merge(merged, df_classes, left_on='class_id', right_on='id')
+                    st.bar_chart(merged.groupby('name')['pct'].mean())
 
-            with tab_mastery:
-                st.subheader("Curriculum Mastery Breakdown")
+            with tabs[3]:
                 if not df_scores.empty:
-                    cat_perf = df_scores.groupby('category')['pct'].mean().sort_values()
-                    st.bar_chart(cat_perf, horizontal=True)
-                else:
-                    st.info("Record assessment scores to view mastery by category.")
+                    st.bar_chart(df_scores.groupby('category')['pct'].mean().sort_values(), horizontal=True)
 
-            with tab_outcomes:
-                st.subheader("Projected Summative Results")
+            with tabs[4]:
                 if not df_scores.empty:
                     bins = [0, 50, 75, 100]
                     labels = ['Support Required', 'Progressing', 'Excellence']
-                    # Use grade_stats from the Matrix tab logic
-                    status_dist = pd.cut(grade_stats, bins=bins, labels=labels).value_counts()
-                    st.bar_chart(status_dist)
-                else:
-                    st.info("Summative forecasts require active assessment data.")
+                    st.bar_chart(pd.cut(grade_means, bins=bins, labels=labels).value_counts())
 
 # --- PAGE: SETUP ---
 elif page == "⚙️ First Time Setup":
@@ -387,6 +331,7 @@ elif page == "🏆 Record Scores":
                     st.success(f"Scores saved! Average: {edited_df['Points Earned'].mean():.1f}/{max_pts}")
                 except Exception as e:
                     st.error(f"Error: {e}")
+
 
 
 
