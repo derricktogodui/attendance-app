@@ -124,11 +124,77 @@ if page == "🏠 Dashboard":
     if not classes_res.data:
         st.warning("Welcome! Please go to 'First Time Setup' to add your first class.")
     else:
+        # --- 2. ADVANCED METRIC CALCULATIONS ---
         total_classes = len(classes_res.data)
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Active Classes", total_classes)
-        col2.metric("System Status", "Online", "Ready")
-        col3.metric("Current Term", "2026-Q1")
+        total_students = len(students_res.data) if students_res.data else 0
+        
+        # A. Calculate Gender Split
+        if total_students > 0:
+            boys = len(df_students[df_students['gender'].str.lower() == 'boy'])
+            girls = len(df_students[df_students['gender'].str.lower() == 'girl'])
+            gender_text = f"👦 {boys} | 👧 {girls}"
+        else:
+            gender_text = "No Data"
+
+        # B. Calculate Weekly Attendance %
+        if not df_att.empty:
+            df_att['date'] = pd.to_datetime(df_att['date']).dt.date
+            one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
+            weekly_data = df_att[df_att['date'] >= one_week_ago]
+            if not weekly_data.empty:
+                weekly_att_pct = weekly_data['is_present'].mean() * 100
+                att_display = f"{weekly_att_pct:.1f}%"
+            else:
+                att_display = "No logs this week"
+        else:
+            att_display = "No logs"
+
+        # C. Calculate Priority Support (Red Flags)
+        # Logic: Attendance < 50% AND Grade < 50%
+        red_flags = 0
+        if not df_scores.empty and not df_att.empty:
+            att_means = df_att.groupby('student_id')['is_present'].mean() * 100
+            df_scores['pct'] = (df_scores['score_value'] / df_scores['max_score']) * 100
+            grade_means = df_scores.groupby('student_id')['pct'].mean()
+            
+            combined = pd.merge(att_means, grade_means, on='student_id')
+            red_flags = len(combined[(combined['is_present'] < 50) & (combined['pct'] < 50)])
+
+        # --- D. THE NEW METRIC GRID (Visuals) ---
+        # CSS for the Premium Metric Cards
+        st.markdown("""
+            <style>
+            .metric-container {
+                background-color: white;
+                padding: 15px;
+                border-radius: 12px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+                border-bottom: 3px solid #4CAF50;
+                text-align: center;
+                margin-bottom: 10px;
+            }
+            .m-label { color: #64748b; font-size: 0.8em; font-weight: bold; text-transform: uppercase; }
+            .m-value { color: #1e293b; font-size: 1.4em; font-weight: 800; }
+            </style>
+        """, unsafe_allow_html=True)
+
+        row1_col1, row1_col2, row1_col3, row1_col4 = st.columns(4)
+        
+        with row1_col1:
+            st.markdown(f'<div class="metric-container"><div class="m-label">Total Enrollment</div><div class="m-value">{total_students}</div></div>', unsafe_allow_html=True)
+        with row1_col2:
+            st.markdown(f'<div class="metric-container"><div class="m-label">Gender Balance</div><div class="m-value" style="font-size: 1.1em;">{gender_text}</div></div>', unsafe_allow_html=True)
+        with row1_col3:
+            st.markdown(f'<div class="metric-container"><div class="m-label">Weekly Presence</div><div class="m-value">{att_display}</div></div>', unsafe_allow_html=True)
+        with row1_col4:
+            color = "#ff4b4b" if red_flags > 0 else "#1e293b"
+            st.markdown(f'<div class="metric-container"><div class="m-label">Priority Support</div><div class="m-value" style="color: {color};">{red_flags} Students</div></div>', unsafe_allow_html=True)
+
+        row2_col1, row2_col2, row2_col3 = st.columns(3)
+        row2_col1.metric("Active Classes", total_classes)
+        row2_col2.metric("System Status", "Online", "Ready")
+        row2_col3.metric("Current Term", "2026-Q1")
+        
         st.divider()
 
         if not students_res.data:
@@ -309,6 +375,7 @@ elif page == "🏆 Record Scores":
                     st.success(f"Scores saved! Average: {edited_df['Points Earned'].mean():.1f}/{max_pts}")
                 except Exception as e:
                     st.error(f"Error: {e}")
+
 
 
 
