@@ -430,8 +430,9 @@ elif page == "👤 Student Profile":
         st.divider()
 
         # 2. Fetch Individual Data
-        s_scores = conn.table("scores").select("*").eq("student_id", student_id).execute()
-        s_att = conn.table("attendance").select("*").eq("student_id", student_id).execute()
+        # 2. Fetch Individual Data (UPDATED TO USE target_id)
+        s_scores = conn.table("scores").select("*").eq("student_id", target_id).execute()
+        s_att = conn.table("attendance").select("*").eq("student_id", target_id).execute()
         
         df_s_scores = pd.DataFrame(s_scores.data) if s_scores.data else pd.DataFrame()
         df_s_att = pd.DataFrame(s_att.data) if s_att.data else pd.DataFrame()
@@ -450,10 +451,14 @@ elif page == "👤 Student Profile":
             df_s_scores['pct'] = (df_s_scores['score_value'] / df_s_scores['max_score']) * 100
             grade_pct = df_s_scores['pct'].mean()
 
-        col1.metric("Academic Average", f"{grade_pct:.1f}%")
-        col2.metric("Attendance Rate", f"{att_pct:.1f}%")
-        col3.metric("Gender", student_gender)
+        # Determine academic standing for a professional touch
+        standing = "🎯 High Achiever" if grade_pct >= 75 else "📈 Progressing" if grade_pct >= 50 else "⚠️ Support Needed"
 
+        col1.metric("Cumulative Average", f"{grade_pct:.1f}%")
+        col2.metric("Attendance Rate", f"{att_pct:.1f}%")
+        col3.metric("Gender Group", target_gender.upper())
+
+        st.info(f"**Academic Standing:** {standing}")
         st.markdown("---")
 
         # 4. Charts Section
@@ -498,6 +503,7 @@ elif page == "👤 Student Profile":
                 st.dataframe(df_s_att[['date', 'Status']].sort_values('date', ascending=False), use_container_width=True, hide_index=True)
             else:
                 st.write("No attendance logs found.")
+
 
 
 
