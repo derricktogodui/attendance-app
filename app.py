@@ -66,6 +66,8 @@ def get_classes():
 def get_students(class_id):
     return conn.table("students").select("id, full_name").eq("class_id", class_id).execute()
 
+def get_all_students():
+    return conn.table("students").select("id, full_name, class_id, gender").execute()
 # --- 4. CENTERED LOGIN PAGE ---
 if 'logged_in' not in st.session_state:
     st.session_state.logged_in = False
@@ -102,7 +104,7 @@ with st.sidebar:
     st.divider()
     page = st.radio(
         "Navigation",
-        ["🏠 Dashboard", "📝 Take Attendance", "🏆 Record Scores", "⚙️ First Time Setup"],
+        ["🏠 Dashboard", "👤 Student Profile", "📝 Take Attendance", "🏆 Record Scores", "⚙️ First Time Setup"],
         index=0
     )
     st.divider()
@@ -331,6 +333,95 @@ elif page == "🏆 Record Scores":
                     st.success(f"Scores saved! Average: {edited_df['Points Earned'].mean():.1f}/{max_pts}")
                 except Exception as e:
                     st.error(f"Error: {e}")
+
+# --- PAGE: STUDENT PROFILE ---
+elif page == "👤 Student Profile":
+    st.header("👤 Student Individual Dossier")
+    
+    # 1. Selection & Search
+    all_students_res = get_all_students()
+    if not all_students_res.data:
+        st.info("No students found. Please upload rosters in Setup.")
+    else:
+        df_all = pd.DataFrame(all_students_res.data)
+        student_names = df_all['full_name'].tolist()
+        
+        selected_name = st.selectbox("Search and Select Student", student_names)
+        student_id = df_all[df_all['full_name'] == selected_name]['id'].values[0]
+        student_gender = df_all[df_all['full_name'] == selected_name]['gender'].values[0]
+        
+        st.divider()
+
+        # 2. Fetch Individual Data
+        s_scores = conn.table("scores").select("*").eq("student_id", student_id).execute()
+        s_att = conn.table("attendance").select("*").eq("student_id", student_id).execute()
+        
+        df_s_scores = pd.DataFrame(s_scores.data) if s_scores.data else pd.DataFrame()
+        df_s_att = pd.DataFrame(s_att.data) if s_att.data else pd.DataFrame()
+
+        # 3. Top Row Metrics
+        col1, col2, col3 = st.columns(3)
+        
+        # Calculate Personal Attendance %
+        att_pct = 0
+        if not df_s_att.empty:
+            att_pct = df_s_att['is_present'].mean() * 100
+        
+        # Calculate Personal Grade %
+        grade_pct = 0
+        if not df_s_scores.empty:
+            df_s_scores['pct'] = (df_s_scores['score_value'] / df_s_scores['max_score']) * 100
+            grade_pct = df_s_scores['pct'].mean()
+
+        col1.metric("Academic Average", f"{grade_pct:.1f}%")
+        col2.metric("Attendance Rate", f"{att_pct:.1f}%")
+        col3.metric("Gender Label", student_gender)
+
+        st.markdown("---")
+
+        # 4. Charts Section
+        left_chart, right_chart = st.columns(2)
+
+        with left_chart:
+            st.subheader("📈 Performance Momentum")
+            if not df_s_scores.empty:
+                # Sort by date
+                df_s_scores['recorded_at'] = pd.to_datetime(df_s_scores['recorded_at'])
+                momentum_df = df_s_scores.sort_values('recorded_at')
+                st.line_chart(momentum_df.set_index('recorded_at')['pct'])
+                st.caption("Chronological trend of assessment results.")
+            else:
+                st.info("No assessment data found for this student.")
+
+        with right_chart:
+            st.subheader("🎯 Mastery by Category")
+            if not df_s_scores.empty:
+                cat_mastery = df_s_scores.groupby('category')['pct'].mean()
+                st.bar_chart(cat_mastery, horizontal=True)
+                st.caption("Comparison of strengths across different task types.")
+            else:
+                st.info("Record scores to view category mastery.")
+
+        st.markdown("---")
+
+        # 5. Raw Data History
+        st.subheader("📋 Historical Record")
+        tab_h_scores, tab_h_att = st.tabs(["Gradebook Entries", "Attendance Logs"])
+        
+        with tab_h_scores:
+            if not df_s_scores.empty:
+                st.dataframe(df_s_scores[['recorded_at', 'category', 'score_value', 'max_score', 'pct']], use_container_width=True, hide_index=True)
+            else:
+                st.write("No grades recorded.")
+
+        with tab_h_att:
+            if not df_s_att.empty:
+                # Highlight absences
+                df_s_att['Status'] = df_s_att['is_present'].apply(lambda x: "✅ Present" if x else "❌ Absent")
+                st.dataframe(df_s_att[['date', 'Status']].sort_values('date', ascending=False), use_container_width=True, hide_index=True)
+            else:
+                st.write("No attendance logs found.")
+
 
 
 
