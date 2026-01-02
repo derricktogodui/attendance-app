@@ -67,10 +67,15 @@ def get_students(class_id):
     return conn.table("students").select("id, full_name").eq("class_id", class_id).execute()
 
 def upload_student_photo(file, student_id):
+    # SAFETY GATE: If there's no ID, stop immediately
+    if not student_id:
+        st.error("Internal Error: No Student ID found. Upload cancelled.")
+        return None
+
     file_ext = file.name.split('.')[-1]
     file_path = f"{student_id}.{file_ext}"
     
-    # THE FIX: Change True to "true" (with quotes)
+    # Upload to Storage
     conn.client.storage.from_("student_photos").upload(
         path=file_path,
         file=file.getvalue(),
@@ -78,7 +83,10 @@ def upload_student_photo(file, student_id):
     )
     
     public_url = conn.client.storage.from_("student_photos").get_public_url(file_path)
+    
+    # THE CRITICAL FIX: Ensure .eq("id", student_id) is strictly targeted
     conn.table("students").update({"photo_url": public_url}).eq("id", student_id).execute()
+    
     return public_url
 
 def get_all_students():
@@ -355,46 +363,46 @@ elif page == "👤 Student Profile":
     # 1. Selection & Search
     # Make sure your get_all_students helper includes 'photo_url'
     # 1. Selection & Search
+# 1. FETCH DATA WITH NO CACHING
     all_students_res = conn.table("students").select("id, full_name, class_id, gender, photo_url").execute()
     
     if not all_students_res.data:
-        st.info("No students found. Please upload rosters in Setup.")
+        st.info("No records found in the Student Directory.")
     else:
         df_all = pd.DataFrame(all_students_res.data)
-        selected_name = st.selectbox("Search and Select Student", df_all['full_name'].tolist())
         
-        # Get selected student data
-        student_data = df_all[df_all['full_name'] == selected_name].iloc[0]
-        student_id = student_data['id']
-        student_gender = student_data['gender']
-        photo_url = student_data['photo_url'] if pd.notna(student_data['photo_url']) else None
+        # --- THE ACCURACY FIX ---
+        # We add a 4-digit slice of the ID to the name to make every row unique
+        df_all['unique_display'] = df_all['full_name'] + " (Ref: " + df_all['id'].astype(str).str[:4] + ")"
+        
+        selected_display = st.selectbox("📂 Access Student Portfolio", df_all['unique_display'].tolist())
+        
+        # Filter the dataframe to get the EXACT row
+        student_row = df_all[df_all['unique_display'] == selected_display].iloc[0]
+        
+        # Lock in the target variables
+        target_id = student_row['id']
+        target_gender = student_row['gender']
+        target_photo = student_row['photo_url'] if pd.notna(student_row['photo_url']) else None
 
-        # --- NEW: IDENTITY CARD ---
+        # --- IDENTITY CARD ---
         id_col1, id_col2 = st.columns([1, 4])
         
-
-        
         with id_col1:
-            if photo_url:
-                # This HTML snippet forces the image into a perfect 150px circle
-                # We add a timestamp at the end so the browser doesn't cache it
+            if target_photo:
                 import time
-                cache_buster = float(time.time())
+                cb = int(time.time())
                 st.markdown(f"""
                     <div style="display: flex; justify-content: center; margin-bottom: 10px;">
-                        <img src="{photo_url}?v={cache_buster}" style="
-                            width: 150px;
-                            height: 150px;
-                            border-radius: 50%; 
-                            object-fit: cover; 
-                            border: 3px solid #4CAF50; 
-                            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+                        <img src="{target_photo}?v={cb}" style="
+                            width: 150px; height: 150px;
+                            border-radius: 50%; object-fit: cover; 
+                            border: 3px solid #4CAF50; box-shadow: 0 4px 10px rgba(0,0,0,0.1);
                         ">
                     </div>
                 """, unsafe_allow_html=True)
             else:
-                # Matches the size of the photo version exactly
-                initials = "".join([n[0] for n in selected_name.split()[:2]]).upper()
+                initials = "".join([n[0] for n in student_row['full_name'].split()[:2]]).upper()
                 st.markdown(f"""
                     <div style="display: flex; justify-content: center; margin-bottom: 10px;">
                         <div style="width: 150px; height: 150px; background-color: #4CAF50; color: white; 
@@ -406,18 +414,18 @@ elif page == "👤 Student Profile":
                     </div>
                 """, unsafe_allow_html=True)
             
-            # The upload button stays right underneath
-            with st.popover("📷 Update Photo"):
-                uploaded_file = st.file_uploader("Upload portrait", type=['png', 'jpg', 'jpeg'])
+            with st.popover("📷 Update Portrait"):
+                uploaded_file = st.file_uploader("Upload official photo", type=['png', 'jpg', 'jpeg'])
                 if uploaded_file:
-                    with st.spinner("Uploading..."):
-                        upload_student_photo(uploaded_file, student_id)
-                        st.success("Photo updated!")
+                    with st.spinner("Writing to database..."):
+                        # Use the target_id we locked in above
+                        upload_student_photo(uploaded_file, target_id)
+                        st.success("Portfolio updated!")
                         st.rerun()
 
         with id_col2:
-            st.markdown(f"<h1 style='margin-bottom:0;'>{selected_name}</h1>", unsafe_allow_html=True)
-            st.markdown(f"<p style='color: #64748b; font-size: 1.2em;'>STUDENT ID: #STU-{student_id} | {student_gender}</p>", unsafe_allow_html=True)
+            st.markdown(f"<h1 style='margin-bottom:0; color: #1e293b;'>{student_row['full_name']}</h1>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color: #64748b; font-size: 1.1em;'>REF: #{str(target_id)[:8].upper()} | GROUP: {target_gender.upper()}</p>", unsafe_allow_html=True)
         
         st.divider()
 
@@ -490,6 +498,7 @@ elif page == "👤 Student Profile":
                 st.dataframe(df_s_att[['date', 'Status']].sort_values('date', ascending=False), use_container_width=True, hide_index=True)
             else:
                 st.write("No attendance logs found.")
+
 
 
 
