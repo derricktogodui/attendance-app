@@ -200,11 +200,23 @@ if page == "🏠 Dashboard":
         if not students_res.data:
             st.info("Classes are ready. Now upload students in 'First Time Setup' to see analytics.")
         else:
-            df_students = pd.DataFrame(students_res.data)
-            df_classes = pd.DataFrame(classes_res.data)
+            # --- MOVE THIS HERE (The Fix) ---
+            df_students = pd.DataFrame(students_res.data) if students_res.data else pd.DataFrame()
+            df_classes = pd.DataFrame(classes_res.data) if classes_res.data else pd.DataFrame()
             df_scores = pd.DataFrame(scores_res.data) if scores_res.data else pd.DataFrame()
             df_att = pd.DataFrame(att_res.data) if att_res.data else pd.DataFrame()
 
+            # Now your metrics can safely use df_students
+            total_classes = len(classes_res.data)
+            total_students = len(df_students)
+        
+            # Gender Logic
+            if not df_students.empty and 'gender' in df_students.columns:
+                boys = len(df_students[df_students['gender'].str.lower() == 'boy'])
+                girls = len(df_students[df_students['gender'].str.lower() == 'girl'])
+                gender_text = f"👦 {boys} | 👧 {girls}"
+            else:
+                gender_text = "No Data"
             # --- THE PROFESSIONAL ANALYTICS TABS ---
             tab_pulse, tab_risk, tab_benchmarking, tab_mastery, tab_outcomes = st.tabs([
                 "📈 Engagement Pulse",
