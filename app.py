@@ -74,7 +74,7 @@ def upload_student_photo(file, student_id):
     conn.client.storage.from_("student_photos").upload(
         path=file_path,
         file=file.getvalue(),
-        file_options={"upsert": "true", "content-type": f"image/{file_ext}"}
+        file_options={"upsert": True, "content-type": f"image/{file_ext}"}
     )
     
     # FIX: Use conn.client.storage here as well
@@ -475,6 +475,7 @@ elif page == "👤 Student Profile":
                 st.dataframe(df_s_att[['date', 'Status']].sort_values('date', ascending=False), use_container_width=True, hide_index=True)
             else:
                 st.write("No attendance logs found.")
+
 
 
 
