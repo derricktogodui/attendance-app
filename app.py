@@ -411,15 +411,6 @@ elif page == "👤 Student Profile":
                         upload_student_photo(uploaded_file, student_id)
                         st.success("Photo updated!")
                         st.rerun()
-            
-            # Click to upload popover
-            with st.popover("📷 Update Photo"):
-                uploaded_file = st.file_uploader("Choose a photo", type=['png', 'jpg', 'jpeg'])
-                if uploaded_file:
-                    with st.spinner("Uploading..."):
-                        upload_student_photo(uploaded_file, student_id)
-                        st.success("Photo updated!")
-                        st.rerun()
 
         with id_col2:
             st.markdown(f"<h1 style='margin-bottom:0;'>{selected_name}</h1>", unsafe_allow_html=True)
@@ -496,6 +487,7 @@ elif page == "👤 Student Profile":
                 st.dataframe(df_s_att[['date', 'Status']].sort_values('date', ascending=False), use_container_width=True, hide_index=True)
             else:
                 st.write("No attendance logs found.")
+
 
 
 
