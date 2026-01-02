@@ -377,9 +377,12 @@ elif page == "👤 Student Profile":
         with id_col1:
             if photo_url:
                 # This HTML snippet forces the image into a perfect 150px circle
+                # We add a timestamp at the end so the browser doesn't cache it
+                import time
+                cache_buster = float(time.time())
                 st.markdown(f"""
                     <div style="display: flex; justify-content: center; margin-bottom: 10px;">
-                        <img src="{photo_url}" style="
+                        <img src="{photo_url}?v={cache_buster}" style="
                             width: 150px;
                             height: 150px;
                             border-radius: 50%; 
@@ -487,6 +490,7 @@ elif page == "👤 Student Profile":
                 st.dataframe(df_s_att[['date', 'Status']].sort_values('date', ascending=False), use_container_width=True, hide_index=True)
             else:
                 st.write("No attendance logs found.")
+
 
 
 
