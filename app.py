@@ -66,6 +66,25 @@ def get_classes():
 def get_students(class_id):
     return conn.table("students").select("id, full_name").eq("class_id", class_id).execute()
 
+def upload_student_photo(file, student_id):
+    file_ext = file.name.split('.')[-1]
+    file_path = f"{student_id}.{file_ext}" # Save as "123.jpg"
+    
+    # Upload to Supabase Storage
+    # Note: We use upsert=True so if you upload a new one, it replaces the old one
+    res = conn.storage.from_("student_photos").upload(
+        path=file_path,
+        file=file.getvalue(),
+        file_options={"upsert": "true", "content-type": f"image/{file_ext}"}
+    )
+    
+    # Get the Public URL of the uploaded file
+    public_url = conn.storage.from_("student_photos").get_public_url(file_path)
+    
+    # Update the student's record in the database
+    conn.table("students").update({"photo_url": public_url}).eq("id", student_id).execute()
+    return public_url
+
 def get_all_students():
     return conn.table("students").select("id, full_name, class_id, gender").execute()
 # --- 4. CENTERED LOGIN PAGE ---
@@ -339,16 +358,52 @@ elif page == "👤 Student Profile":
     st.header("👤 Student Individual Dossier")
     
     # 1. Selection & Search
-    all_students_res = get_all_students()
+    # Make sure your get_all_students helper includes 'photo_url'
+    # 1. Selection & Search
+    all_students_res = conn.table("students").select("id, full_name, class_id, gender, photo_url").execute()
+    
     if not all_students_res.data:
         st.info("No students found. Please upload rosters in Setup.")
     else:
         df_all = pd.DataFrame(all_students_res.data)
-        student_names = df_all['full_name'].tolist()
+        selected_name = st.selectbox("Search and Select Student", df_all['full_name'].tolist())
         
-        selected_name = st.selectbox("Search and Select Student", student_names)
-        student_id = df_all[df_all['full_name'] == selected_name]['id'].values[0]
-        student_gender = df_all[df_all['full_name'] == selected_name]['gender'].values[0]
+        # Get selected student data
+        student_data = df_all[df_all['full_name'] == selected_name].iloc[0]
+        student_id = student_data['id']
+        student_gender = student_data['gender']
+        photo_url = student_data['photo_url'] if pd.notna(student_data['photo_url']) else None
+
+        # --- NEW: IDENTITY CARD ---
+        id_col1, id_col2 = st.columns([1, 4])
+        
+        with id_col1:
+            if photo_url:
+                st.image(photo_url, width=150)
+            else:
+                # Professional Avatar Placeholder
+                initials = "".join([n[0] for n in selected_name.split()[:2]]).upper()
+                st.markdown(f"""
+                    <div style="width: 120px; height: 120px; background-color: #4CAF50; color: white; 
+                        display: flex; align-items: center; justify-content: center; 
+                        border-radius: 50%; font-size: 40px; font-weight: bold;
+                        box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+                        {initials}
+                    </div>
+                """, unsafe_allow_html=True)
+            
+            # Click to upload popover
+            with st.popover("📷 Update Photo"):
+                uploaded_file = st.file_uploader("Choose a photo", type=['png', 'jpg', 'jpeg'])
+                if uploaded_file:
+                    with st.spinner("Uploading..."):
+                        upload_student_photo(uploaded_file, student_id)
+                        st.success("Photo updated!")
+                        st.rerun()
+
+        with id_col2:
+            st.markdown(f"<h1 style='margin-bottom:0;'>{selected_name}</h1>", unsafe_allow_html=True)
+            st.markdown(f"<p style='color: #64748b; font-size: 1.2em;'>STUDENT ID: #STU-{student_id} | {student_gender}</p>", unsafe_allow_html=True)
         
         st.divider()
 
@@ -421,6 +476,7 @@ elif page == "👤 Student Profile":
                 st.dataframe(df_s_att[['date', 'Status']].sort_values('date', ascending=False), use_container_width=True, hide_index=True)
             else:
                 st.write("No attendance logs found.")
+
 
 
 
