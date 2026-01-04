@@ -127,7 +127,7 @@ with st.sidebar:
     st.divider()
     page = st.radio(
         "Navigation",
-        ["🏠 Dashboard", "👤 Student Profile", "📝 Take Attendance", "🏆 Record Scores", "⚙️ First Time Setup"],
+        ["Dashboard", "Student Profile", "Take Attendance", "Record Scores", "First Time Setup", "Manage Records"],
         index=0
     )
     st.divider()
@@ -218,7 +218,7 @@ if page == "🏠 Dashboard":
         if total_students == 0:
             st.info("Classes are ready. Now upload students in 'First Time Setup' to see analytics.")
         else:
-            tabs = st.tabs(["📈 Engagement Pulse", "🚩 At-Risk/Intervention", "🏫 Comparative Class Analytics", "📖 Assessment Analysis", "🔮 Semester Outcomes"])
+            tabs = st.tabs(["Engagement Pulse", "At-Risk/Intervention", "Comparative Class Analytics", "Assessment Analysis", "Semester Outcomes"])
             
             with tabs[0]:
                 if not df_att.empty:
@@ -251,7 +251,7 @@ if page == "🏠 Dashboard":
                     st.bar_chart(pd.cut(grade_means, bins=bins, labels=labels).value_counts())
 
 # --- PAGE: SETUP ---
-elif page == "⚙️ First Time Setup":
+elif page == "First Time Setup":
     st.header("1️⃣ Create a Class")
     with st.form("add_class_form"):
         new_class_name = st.text_input("Class Name")
@@ -274,7 +274,7 @@ elif page == "⚙️ First Time Setup":
             if 'name' not in df.columns:
                 st.error("Column 'name' not found.")
             else:
-                if st.button("🚀 Import All Students"):
+                if st.button("Import All Students"):
                     student_list = [{"full_name": r['name'], "class_id": class_map[target_class], "gender": r.get('gender', 'Not Specified')} for _, r in df.iterrows()]
                     try:
                         conn.table("students").upsert(student_list, on_conflict="full_name, class_id").execute()
@@ -283,8 +283,8 @@ elif page == "⚙️ First Time Setup":
                     except Exception as e: st.error(f"Error: {e}")
 
 # --- PAGE: ATTENDANCE ---
-elif page == "📝 Take Attendance":
-    st.header("📝 Daily Attendance Ledger")
+elif page == "Take Attendance":
+    st.header("Daily Attendance")
     classes_data = get_classes()
     
     if not classes_data.data:
@@ -319,7 +319,7 @@ elif page == "📝 Take Attendance":
             
             # Professional Warning if data already exists
             if existing_att.data:
-                st.info(f"💡 Records for {selected_date} already exist. Saving will update the current list.")
+                st.info(f"Records for {selected_date} already exist. Saving will update the current list.")
 
             # 2. DATA EDITOR
             edited_df = st.data_editor(
@@ -334,7 +334,7 @@ elif page == "📝 Take Attendance":
             )
             
             # 3. SAVE LOGIC (Using UPSERT to prevent duplicates)
-            if st.button("💾 Finalize Attendance"):
+            if st.button("Finalize Attendance"):
                 with st.spinner("Syncing records..."):
                     attendance_records = [
                         {
@@ -349,8 +349,8 @@ elif page == "📝 Take Attendance":
                     conn.table("attendance").upsert(attendance_records).execute()
                     st.success(f"Successfully recorded attendance for {len(attendance_records)} students.")
 # --- PAGE: SCORES ---
-elif page == "🏆 Record Scores":
-    st.header("🏆 Assessment & Competency Entry")
+elif page == "Record Scores":
+    st.header("Assessment & Competency Entry")
     classes_data = get_classes()
     
     if not classes_data.data:
@@ -393,7 +393,7 @@ elif page == "🏆 Record Scores":
 
             # UI Feedback for History
             if existing_scores_res.data:
-                st.info(f"📂 Found existing '{category}' records for {score_date}. You can edit and save to update them.")
+                st.info(f"Found existing '{category}' records for {score_date}. You can edit and save to update them.")
 
             st.write(f"### Score Sheet: {category} (Out of {max_pts})")
             
@@ -415,7 +415,7 @@ elif page == "🏆 Record Scores":
             )
             
             # 4. Save Logic (Using Upsert)
-            if st.button("💾 Finalize & Save Scores"):
+            if st.button("Finalize & Save Scores"):
                 with st.spinner("Processing results..."):
                     score_records = []
                     for _, row in edited_df.iterrows():
@@ -435,7 +435,7 @@ elif page == "🏆 Record Scores":
                         st.error(f"Error saving data: {e}")
 
 # --- PAGE: STUDENT PROFILE ---
-elif page == "👤 Student Profile":
+elif page == "Student Profile":
     
     # 1. Selection & Search
     # Make sure your get_all_students helper includes 'photo_url'
@@ -452,7 +452,7 @@ elif page == "👤 Student Profile":
         # We add a 4-digit slice of the ID to the name to make every row unique
         df_all['unique_display'] = df_all['full_name'] + " (Ref: " + df_all['id'].astype(str).str[:4] + ")"
         
-        selected_display = st.selectbox("📂 Access Student Portfolio", df_all['unique_display'].tolist())
+        selected_display = st.selectbox("Access Student Portfolio", df_all['unique_display'].tolist())
         
         # Filter the dataframe to get the EXACT row
         student_row = df_all[df_all['unique_display'] == selected_display].iloc[0]
@@ -491,7 +491,7 @@ elif page == "👤 Student Profile":
                     </div>
                 """, unsafe_allow_html=True)
             
-            with st.popover("📷 Update Portrait"):
+            with st.popover("Update Portrait"):
                 uploaded_file = st.file_uploader("Upload official photo", type=['png', 'jpg', 'jpeg'])
                 if uploaded_file:
                     with st.spinner("Writing to database..."):
@@ -529,7 +529,7 @@ elif page == "👤 Student Profile":
             grade_pct = df_s_scores['pct'].mean()
 
         # Determine academic standing for a professional touch
-        standing = "🎯 High Achiever" if grade_pct >= 75 else "📈 Progressing" if grade_pct >= 50 else "⚠️ Support Needed"
+        standing = "High Achiever" if grade_pct >= 75 else "Progressing" if grade_pct >= 50 else "⚠️ Support Needed"
 
         col1.metric("Cumulative Average", f"{grade_pct:.1f}%")
         col2.metric("Attendance Rate", f"{att_pct:.1f}%")
@@ -542,7 +542,7 @@ elif page == "👤 Student Profile":
         left_chart, right_chart = st.columns(2)
 
         with left_chart:
-            st.subheader("📈 Performance Momentum")
+            st.subheader("Performance Momentum")
             if not df_s_scores.empty:
                 # Sort by date
                 df_s_scores['recorded_at'] = pd.to_datetime(df_s_scores['recorded_at'])
@@ -553,7 +553,7 @@ elif page == "👤 Student Profile":
                 st.info("No assessment data found for this student.")
 
         with right_chart:
-            st.subheader("🎯 Mastery by Category")
+            st.subheader("Mastery by Category")
             if not df_s_scores.empty:
                 cat_mastery = df_s_scores.groupby('category')['pct'].mean()
                 st.bar_chart(cat_mastery, horizontal=True)
@@ -564,7 +564,7 @@ elif page == "👤 Student Profile":
         st.markdown("---")
 
         # 5. Raw Data History
-        st.subheader("📋 Historical Record")
+        st.subheader("Historical Record")
         tab_h_scores, tab_h_att = st.tabs(["Gradebook Entries", "Attendance Logs"])
         
         with tab_h_scores:
@@ -580,6 +580,82 @@ elif page == "👤 Student Profile":
                 st.dataframe(df_s_att[['date', 'Status']].sort_values('date', ascending=False), use_container_width=True, hide_index=True)
             else:
                 st.write("No attendance logs found.")
+
+# --- PAGE: MANAGE RECORDS ---
+elif page == "Manage Records":
+    st.header("Classroom Administration")
+    
+    classes_res = get_classes()
+    if not classes_res.data:
+        st.warning("No classes found. Create one in 'First Time Setup'.")
+    else:
+        # 1. Select Class to Manage
+        class_map = {c['name']: c['id'] for c in classes_res.data}
+        manage_class_name = st.selectbox("Select Class to Manage", list(class_map.keys()))
+        manage_class_id = class_map[manage_class_name]
+        
+        # 2. Fetch Students
+        students_res = conn.table("students").select("*").eq("class_id", manage_class_id).execute()
+        
+        if not students_res.data:
+            st.info("This class has no students.")
+            if st.button("Delete Empty Class"):
+                conn.table("classes").delete().eq("id", manage_class_id).execute()
+                st.success("Class deleted.")
+                st.rerun()
+        else:
+            df_manage = pd.DataFrame(students_res.data)
+            
+            st.subheader("Student Roster")
+            st.caption("Double-click a cell to edit. Click 'Save Changes' to update the database.")
+            
+            # 3. Data Editor for Editing Names/Gender
+            edited_df = st.data_editor(
+                df_manage[['id', 'full_name', 'gender']],
+                column_config={
+                    "id": None, # Hide ID
+                    "full_name": st.column_config.TextColumn("Full Name", required=True),
+                    "gender": st.column_config.SelectboxColumn("Gender", options=["Boy", "Girl", "Not Specified"])
+                },
+                use_container_width=True,
+                hide_index=True,
+                key="roster_editor"
+            )
+
+            # SAVE EDITS BUTTON
+            if st.button("Save Changes to Roster"):
+                with st.spinner("Updating records..."):
+                    for _, row in edited_df.iterrows():
+                        conn.table("students").update({
+                            "full_name": row['full_name'],
+                            "gender": row['gender']
+                        }).eq("id", row['id']).execute()
+                    st.success("Roster updated successfully!")
+                    st.rerun()
+
+            st.divider()
+
+            # 4. DELETION SECTION (The "Dangerous" Zone)
+            st.subheader("Danger Zone")
+            st.warning("Deleting a student will permanently remove all their attendance and score history.")
+            
+            delete_student_name = st.selectbox("Select Student to Permanently Remove", df_manage['full_name'].tolist())
+            delete_id = df_manage[df_manage['full_name'] == delete_student_name]['id'].values[0]
+
+            # Use a Popover to confirm deletion (to prevent accidental clicks)
+            with st.popover("Delete Student"):
+                st.write(f"Are you absolutely sure you want to delete **{delete_student_name}**?")
+                st.write("This action cannot be undone.")
+                if st.button("Confirm Permanent Deletion"):
+                    # Delete linked records first to satisfy database constraints
+                    conn.table("scores").delete().eq("student_id", delete_id).execute()
+                    conn.table("attendance").delete().eq("student_id", delete_id).execute()
+                    # Finally delete the student
+                    conn.table("students").delete().eq("id", delete_id).execute()
+                    
+                    st.error(f"Record for {delete_student_name} has been erased.")
+                    st.rerun()
+
 
 
 
