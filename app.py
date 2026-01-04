@@ -284,27 +284,70 @@ elif page == "⚙️ First Time Setup":
 
 # --- PAGE: ATTENDANCE ---
 elif page == "📝 Take Attendance":
-    st.header("📝 Daily Attendance")
+    st.header("📝 Daily Attendance Ledger")
     classes_data = get_classes()
+    
     if not classes_data.data:
-        st.warning("Please add a class first.")
+        st.warning("Please add a class in Setup first.")
     else:
         col1, col2 = st.columns(2)
         selected_date = col1.date_input("Date", datetime.date.today())
         class_map = {c['name']: c['id'] for c in classes_data.data}
-        selected_class = col2.selectbox("Class", list(class_map.keys()))
-        students = get_students(class_map[selected_class])
+        selected_class_name = col2.selectbox("Class", list(class_map.keys()))
+        class_id = class_map[selected_class_name]
         
-        if not students.data: st.info("No students enrolled.")
+        # 1. FETCH STUDENTS & EXISTING RECORDS
+        students_res = get_students(class_id)
+        existing_att = conn.table("attendance").select("*").eq("date", str(selected_date)).execute()
+        
+        if not students_res.data:
+            st.info("No students enrolled in this class.")
         else:
-            df = pd.DataFrame(students.data)[['full_name']].copy()
-            df['Present'] = True
-            edited_df = st.data_editor(df, column_config={"Present": st.column_config.CheckboxColumn(required=True)}, disabled=["full_name"], hide_index=True, use_container_width=True)
-            if st.button("💾 Save Attendance"):
-                records = [{"student_id": students.data[i]['id'], "is_present": row['Present'], "date": str(selected_date)} for i, row in edited_df.iterrows()]
-                conn.table("attendance").upsert(records).execute()
-                st.success("Attendance saved!")
+            # Create a dictionary of existing attendance for quick lookup
+            # This is the "History" part
+            history_dict = {str(rec['student_id']): rec['is_present'] for rec in existing_att.data}
+            
+            # Prepare the list for the editor
+            # If student has a record in history_dict, use it. Otherwise, default to True.
+            display_data = []
+            for s in students_res.data:
+                s_id = str(s['id'])
+                is_present = history_dict.get(s_id, True) # Default to Present
+                display_data.append({"ID": s['id'], "Student Name": s['full_name'], "Status": is_present})
+            
+            df_display = pd.DataFrame(display_data)
+            
+            # Professional Warning if data already exists
+            if existing_att.data:
+                st.info(f"💡 Records for {selected_date} already exist. Saving will update the current list.")
 
+            # 2. DATA EDITOR
+            edited_df = st.data_editor(
+                df_display,
+                column_config={
+                    "ID": None, # Hide the ID
+                    "Status": st.column_config.CheckboxColumn("Present?", default=True)
+                },
+                disabled=["Student Name"],
+                hide_index=True,
+                use_container_width=True
+            )
+            
+            # 3. SAVE LOGIC (Using UPSERT to prevent duplicates)
+            if st.button("💾 Finalize Attendance"):
+                with st.spinner("Syncing records..."):
+                    attendance_records = [
+                        {
+                            "student_id": row['ID'], 
+                            "is_present": row['Status'], 
+                            "date": str(selected_date)
+                        } for _, row in edited_df.iterrows()
+                    ]
+                    
+                    # 'upsert' automatically handles the "don't mark twice" logic
+                    # It updates the record if (student_id + date) matches, otherwise inserts.
+                    conn.table("attendance").upsert(attendance_records).execute()
+                    st.success(f"Successfully recorded attendance for {len(attendance_records)} students.")
 # --- PAGE: SCORES ---
 elif page == "🏆 Record Scores":
     st.header("🏆 Record Class Scores")
@@ -503,6 +546,7 @@ elif page == "👤 Student Profile":
                 st.dataframe(df_s_att[['date', 'Status']].sort_values('date', ascending=False), use_container_width=True, hide_index=True)
             else:
                 st.write("No attendance logs found.")
+
 
 
 
