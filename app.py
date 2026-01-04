@@ -126,7 +126,7 @@ with st.sidebar:
     st.write(f"Logged in as: **Teacher**")
     st.divider()
     page = st.radio(
-        "Navigation",
+        "Menu",
         ["Dashboard", "Student Profile", "Take Attendance", "Record Scores", "First Time Setup", "Manage Records"],
         index=0
     )
@@ -136,10 +136,8 @@ with st.sidebar:
         st.rerun()
 
 # --- PAGE: DASHBOARD ---
-# --- PAGE: DASHBOARD (Updated with Pulse & Professional Naming) ---
-# --- PAGE: DASHBOARD ---
 if page == "Dashboard":
-    st.title("Academic Overview")
+    st.header("Academic Overview")
     
     with st.spinner("Analyzing classroom data..."):
         students_res = conn.table("students").select("id, full_name, class_id, gender").execute()
@@ -655,6 +653,7 @@ elif page == "Manage Records":
                     
                     st.error(f"Record for {delete_student_name} has been erased.")
                     st.rerun()
+
 
 
 
