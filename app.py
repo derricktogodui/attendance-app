@@ -350,7 +350,7 @@ elif page == "Take Attendance":
                     st.success(f"Successfully recorded attendance for {len(attendance_records)} students.")
 # --- PAGE: SCORES ---
 elif page == "Record Scores":
-    st.header("Assessment & Competency Entry")
+    st.header("Assessment")
     classes_data = get_classes()
     
     if not classes_data.data:
@@ -655,6 +655,7 @@ elif page == "Manage Records":
                     
                     st.error(f"Record for {delete_student_name} has been erased.")
                     st.rerun()
+
 
 
 
