@@ -350,55 +350,89 @@ elif page == "📝 Take Attendance":
                     st.success(f"Successfully recorded attendance for {len(attendance_records)} students.")
 # --- PAGE: SCORES ---
 elif page == "🏆 Record Scores":
-    st.header("🏆 Record Class Scores")
+    st.header("🏆 Assessment & Competency Entry")
     classes_data = get_classes()
+    
     if not classes_data.data:
-        st.warning("Please add a class first.")
+        st.warning("Please add a class in Setup first.")
     else:
+        # 1. Inputs for the Assessment
         col1, col2, col3 = st.columns([2, 2, 1])
-        score_date = col1.date_input("Date", datetime.date.today())
+        score_date = col1.date_input("Assessment Date", datetime.date.today())
         category = col2.selectbox("Category", ["Quiz", "Exercise", "Midterm", "Assignment", "Presentation", "Group Work", "Class Participation"])
         max_pts = col3.number_input("Max Points", min_value=1.0, value=10.0, step=1.0)
         
         class_map = {c['name']: c['id'] for c in classes_data.data}
-        selected_class = st.selectbox("Select Class", list(class_map.keys()))
-        students_res = get_students(class_map[selected_class])
-        students = students_res.data
+        selected_class = st.selectbox("Select Target Class", list(class_map.keys()))
+        class_id = class_map[selected_class]
         
-        if not students:
-            st.info("No students enrolled.")
+        # 2. Fetch Students & Existing Scores for this specific Date/Category
+        students_res = get_students(class_id)
+        # Search if scores already exist for this date and category
+        existing_scores_res = conn.table("scores").select("*").eq("recorded_at", str(score_date)).eq("category", category).execute()
+        
+        if not students_res.data:
+            st.info("No students enrolled in this class.")
         else:
-            st.write(f"### Recording: {category} (Total: {max_pts} pts)")
-            data = [{"ID": s['id'], "Student Name": s['full_name'], "Points Earned": 0.0} for s in students]
-            df_scores = pd.DataFrame(data)
+            # Create a history map: {student_id: score_value}
+            history_map = {str(rec['student_id']): rec['score_value'] for rec in existing_scores_res.data}
+            
+            # Prepare data for the editor
+            display_data = []
+            for s in students_res.data:
+                s_id = str(s['id'])
+                # Pre-load existing score if found, else default to 0.0
+                current_score = history_map.get(s_id, 0.0)
+                display_data.append({
+                    "ID": s['id'], 
+                    "Student Name": s['full_name'], 
+                    "Points Earned": float(current_score)
+                })
+            
+            df_display = pd.DataFrame(display_data)
 
+            # UI Feedback for History
+            if existing_scores_res.data:
+                st.info(f"📂 Found existing '{category}' records for {score_date}. You can edit and save to update them.")
+
+            st.write(f"### Score Sheet: {category} (Out of {max_pts})")
+            
+            # 3. Data Editor
             edited_df = st.data_editor(
-                df_scores,
+                df_display,
                 column_config={
-                    "ID": None,
-                    "Points Earned": st.column_config.NumberColumn(label=f"Points (max {max_pts})", min_value=0.0, max_value=float(max_pts), format="%.1f")
+                    "ID": None, # Hide ID
+                    "Points Earned": st.column_config.NumberColumn(
+                        label=f"Points / {max_pts}", 
+                        min_value=0.0, 
+                        max_value=float(max_pts), 
+                        format="%.1f"
+                    )
                 },
                 disabled=["Student Name"],
                 hide_index=True,
                 use_container_width=True
             )
             
-            if st.button("💾 Save All Scores"):
-                score_records = []
-                for _, row in edited_df.iterrows():
-                    score_records.append({
-                        "student_id": row['ID'],
-                        "category": category,
-                        "score_value": row['Points Earned'],
-                        "max_score": max_pts,
-                        "recorded_at": str(score_date)
-                    })
-                
-                try:
-                    conn.table("scores").insert(score_records).execute()
-                    st.success(f"Scores saved! Average: {edited_df['Points Earned'].mean():.1f}/{max_pts}")
-                except Exception as e:
-                    st.error(f"Error: {e}")
+            # 4. Save Logic (Using Upsert)
+            if st.button("💾 Finalize & Save Scores"):
+                with st.spinner("Processing results..."):
+                    score_records = []
+                    for _, row in edited_df.iterrows():
+                        score_records.append({
+                            "student_id": row['ID'],
+                            "category": category,
+                            "score_value": row['Points Earned'],
+                            "max_score": max_pts,
+                            "recorded_at": str(score_date)
+                        })
+                    
+                    try:
+                        # UPSERT prevents double-entries for the same student/category/date
+                        conn.table("scores").upsert(score_records).execute()
+                        st.success(f"Scores finalized. Class Average: {edited_df['Points Earned'].mean():.1f}/{max_pts}")
+                    except Exception as e:
+                        st.error(f"Error saving data: {e}")
 
 # --- PAGE: STUDENT PROFILE ---
 elif page == "👤 Student Profile":
@@ -546,6 +580,7 @@ elif page == "👤 Student Profile":
                 st.dataframe(df_s_att[['date', 'Status']].sort_values('date', ascending=False), use_container_width=True, hide_index=True)
             else:
                 st.write("No attendance logs found.")
+
 
 
 
