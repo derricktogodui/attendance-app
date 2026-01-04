@@ -138,8 +138,8 @@ with st.sidebar:
 # --- PAGE: DASHBOARD ---
 # --- PAGE: DASHBOARD (Updated with Pulse & Professional Naming) ---
 # --- PAGE: DASHBOARD ---
-if page == "🏠 Dashboard":
-    st.title("🏛️ Academic Overview")
+if page == "Dashboard":
+    st.title("Academic Overview")
     
     with st.spinner("Analyzing classroom data..."):
         students_res = conn.table("students").select("id, full_name, class_id, gender").execute()
@@ -655,6 +655,7 @@ elif page == "Manage Records":
                     
                     st.error(f"Record for {delete_student_name} has been erased.")
                     st.rerun()
+
 
 
 
