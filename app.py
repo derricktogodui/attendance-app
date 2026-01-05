@@ -144,6 +144,7 @@ if page == "Dashboard":
     if not classes_res.data:
         st.warning("Welcome! Please go to 'First Time Setup' to add your first class.")
     else:
+        df_classes = pd.DataFrame(classes_res.data)
         # NEW: Allow the teacher to pick one class or see everything
         class_list = {c['name']: c['id'] for c in classes_res.data}
         view_filter = st.selectbox("🔍 Filter View", ["All Classes"] + list(class_list.keys()))
@@ -666,6 +667,7 @@ elif page == "Manage Records":
                     
                     st.error(f"Record for {delete_student_name} has been erased.")
                     st.rerun()
+
 
 
 
