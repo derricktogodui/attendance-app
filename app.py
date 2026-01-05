@@ -362,28 +362,38 @@ elif page == "Take Attendance":
         
         # 1. FETCH STUDENTS & EXISTING RECORDS
         students_res = get_students(class_id)
-        existing_att = conn.table("attendance").select("*").eq("date", str(selected_date)).execute()
         
-        if not students_res.data:
-            st.info("No students enrolled in this class.")
-        else:
-            # Create a dictionary of existing attendance for quick lookup
-            # This is the "History" part
-            history_dict = {str(rec['student_id']): rec['is_present'] for rec in existing_att.data}
+        # --- THE FIX STARTS HERE ---
+        if students_res.data:
+            # Get the list of IDs for students in THIS class
+            class_student_ids = [s['id'] for s in students_res.data]
             
-            # Prepare the list for the editor
-            # If student has a record in history_dict, use it. Otherwise, default to True.
-            display_data = []
-            for s in students_res.data:
-                s_id = str(s['id'])
-                is_present = history_dict.get(s_id, True) # Default to Present
-                display_data.append({"ID": s['id'], "Student Name": s['full_name'], "Status": is_present})
+            # Look for existing records on this date specifically for THESE students
+            existing_att = conn.table("attendance")\
+                .select("*")\
+                .eq("date", str(selected_date))\
+                .in_("student_id", class_student_ids)\
+                .execute()
             
-            df_display = pd.DataFrame(display_data)
-            
-            # Professional Warning if data already exists
-            if existing_att.data:
-                st.info(f"Records for {selected_date} already exist. Saving will update the current list.")
+            if not students_res.data:
+                st.info("No students enrolled in this class.")
+            else:
+                # Create history dict for quick lookup
+                history_dict = {str(rec['student_id']): rec['is_present'] for rec in existing_att.data}
+                
+                # --- Rest of your logic ---
+                display_data = []
+                for s in students_res.data:
+                    s_id = str(s['id'])
+                    is_present = history_dict.get(s_id, True)
+                    display_data.append({"ID": s['id'], "Student Name": s['full_name'], "Status": is_present})
+                
+                df_display = pd.DataFrame(display_data)
+                
+                # NOW the warning is Class-Specific
+                if existing_att.data:
+                    st.info(f"Records for {selected_date} in **{selected_class_name}** already exist. Saving will update them.")
+        # --- THE FIX ENDS HERE ---
 
             # 2. DATA EDITOR
             edited_df = st.data_editor(
@@ -720,6 +730,7 @@ elif page == "Manage Records":
                     
                     st.error(f"Record for {delete_student_name} has been erased.")
                     st.rerun()
+
 
 
 
