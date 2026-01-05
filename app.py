@@ -248,11 +248,55 @@ if page == "Dashboard":
 
             with tabs[1]:
                 if not df_scores.empty and not df_att.empty:
-                    # Logic is already calculated above in red_flags section
-                    analytics = pd.merge(att_means, grade_means, on='student_id')
-                    analytics = pd.merge(analytics, df_students.set_index('id'), left_index=True, right_index=True)
-                    st.scatter_chart(analytics, x="is_present", y="pct", color="#ff4b4b")
-                else: st.info("More data needed for correlation analysis.")
+                    st.subheader("🚩 Intervention Priority List")
+                    
+                    # 1. Logic for Verdicts
+                    # We merge grades and attendance to find the 'hidden' struggling students
+                    risk_data = pd.merge(att_means, grade_means, on='student_id')
+                    
+                    def get_risk_status(row):
+                        if row['is_present'] < 60 and row['pct'] < 50: return "🚨 Urgent Intervention"
+                        if row['pct'] < 50: return "⚠️ Academic Risk"
+                        if row['is_present'] < 60: return "🟡 Attendance Warning"
+                        return "✅ On Track"
+
+                    risk_data['Status'] = risk_data.apply(get_risk_status, axis=1)
+                    
+                    # Merge with names and filter out the 'On Track' students for a clean list
+                    roster = pd.merge(risk_data, df_students[['id', 'full_name']], left_on='student_id', right_on='id')
+                    priority_list = roster[roster['Status'] != "On Track"][['full_name', 'pct', 'is_present', 'Status']]
+                    
+                    if not priority_list.empty:
+                        st.dataframe(
+                            priority_list.sort_values("pct"), 
+                            column_config={
+                                "full_name": "Student Name",
+                                "pct": st.column_config.NumberColumn("Avg Grade", format="%.1f%%"),
+                                "is_present": st.column_config.NumberColumn("Attendance", format="%.1f%%"),
+                                "Status": "Required Action"
+                            },
+                            use_container_width=True,
+                            hide_index=True
+                        )
+                    else:
+                        st.success("✨ All students are currently meeting attendance and academic benchmarks.")
+
+                    st.markdown("---")
+                    
+                    # 2. Visual Correlation Chart
+                    st.subheader("📉 The 'Attendance vs. Grades' Link")
+                    st.caption("Dots in the bottom-left corner are your highest priority students.")
+                    
+                    # Plotting the visual trend
+                    st.scatter_chart(
+                        roster, 
+                        x="is_present", 
+                        y="pct", 
+                        color="Status", # Colors the dots by their risk category!
+                        size=20
+                    )
+                else:
+                    st.info("More data needed to generate intervention analytics. Record at least 3 sessions of attendance and scores.")
 
             with tabs[2]:
                 if not df_scores.empty:
@@ -676,6 +720,7 @@ elif page == "Manage Records":
                     
                     st.error(f"Record for {delete_student_name} has been erased.")
                     st.rerun()
+
 
 
 
