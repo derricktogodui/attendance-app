@@ -136,23 +136,35 @@ with st.sidebar:
         st.rerun()
 
 # --- PAGE: DASHBOARD ---
+# --- PAGE: DASHBOARD ---
 if page == "Dashboard":
     st.header("Academic Overview")
     
-    with st.spinner("Analyzing classroom data..."):
-        students_res = conn.table("students").select("id, full_name, class_id, gender").execute()
-        classes_res = conn.table("classes").select("id, name").execute()
-        scores_res = conn.table("scores").select("student_id, score_value, max_score, category").execute()
-        att_res = conn.table("attendance").select("student_id, is_present, date").execute()
-
+    classes_res = get_classes()
     if not classes_res.data:
         st.warning("Welcome! Please go to 'First Time Setup' to add your first class.")
     else:
-        # STEP 1: DEFINE DATAFRAMES FIRST (This fixes the NameError)
-        df_students = pd.DataFrame(students_res.data) if students_res.data else pd.DataFrame()
-        df_classes = pd.DataFrame(classes_res.data) if classes_res.data else pd.DataFrame()
-        df_scores = pd.DataFrame(scores_res.data) if scores_res.data else pd.DataFrame()
-        df_att = pd.DataFrame(att_res.data) if att_res.data else pd.DataFrame()
+        # NEW: Allow the teacher to pick one class or see everything
+        class_list = {c['name']: c['id'] for c in classes_res.data}
+        view_filter = st.selectbox("🔍 Filter View", ["All Classes"] + list(class_list.keys()))
+
+        with st.spinner("Analyzing classroom data..."):
+            students_res = conn.table("students").select("*").execute()
+            scores_res = conn.table("scores").select("*").execute()
+            att_res = conn.table("attendance").select("*").execute()
+            
+            df_students = pd.DataFrame(students_res.data)
+            df_scores = pd.DataFrame(scores_res.data)
+            df_att = pd.DataFrame(att_res.data)
+
+            # APPLY CLASS FILTER
+            if view_filter != "All Classes":
+                target_cid = class_list[view_filter]
+                df_students = df_students[df_students['class_id'] == target_cid]
+                # Filter scores and attendance to only show students in THIS class
+                valid_ids = df_students['id'].tolist()
+                df_scores = df_scores[df_scores['student_id'].isin(valid_ids)]
+                df_att = df_att[df_att['student_id'].isin(valid_ids)]
 
         # STEP 2: CALCULATE METRICS
         total_classes = len(df_classes)
@@ -434,11 +446,7 @@ elif page == "Record Scores":
 
 # --- PAGE: STUDENT PROFILE ---
 elif page == "Student Profile":
-    
-    # 1. Selection & Search
-    # Make sure your get_all_students helper includes 'photo_url'
-    # 1. Selection & Search
-# 1. FETCH DATA WITH NO CACHING
+    # 1. Fetch fresh data
     all_students_res = conn.table("students").select("id, full_name, class_id, gender, photo_url").execute()
     
     if not all_students_res.data:
@@ -446,17 +454,22 @@ elif page == "Student Profile":
     else:
         df_all = pd.DataFrame(all_students_res.data)
         
-        # --- THE ACCURACY FIX ---
-        # We add a 4-digit slice of the ID to the name to make every row unique
-        df_all['unique_display'] = df_all['full_name'] + " (Ref: " + df_all['id'].astype(str).str[:4] + ")"
+        # THE PROFESSIONAL FIX: Create a dictionary mapping display labels to FULL IDs
+        # Format: {"John Doe (Ref: 4cde)": "4cde-full-uuid-here", ...}
+        student_map = {
+            f"{row['full_name']} (Ref: {str(row['id'])[:5]})": row['id'] 
+            for _, row in df_all.iterrows()
+        }
         
-        selected_display = st.selectbox("Access Student Portfolio", df_all['unique_display'].tolist())
+        selected_label = st.selectbox("📂 Access Student Portfolio", list(student_map.keys()))
         
-        # Filter the dataframe to get the EXACT row
-        student_row = df_all[df_all['unique_display'] == selected_display].iloc[0]
+        # We retrieve the FULL ID from the dictionary using the label
+        target_id = student_map[selected_label] 
         
-        # Lock in the target variables
-        target_id = student_row['id']
+        # Extract the specific row using the full unique ID
+        student_row = df_all[df_all['id'] == target_id].iloc[0]
+        
+        # Lock in variables
         target_gender = student_row['gender']
         target_photo = student_row['photo_url'] if pd.notna(student_row['photo_url']) else None
 
@@ -653,6 +666,7 @@ elif page == "Manage Records":
                     
                     st.error(f"Record for {delete_student_name} has been erased.")
                     st.rerun()
+
 
 
 
