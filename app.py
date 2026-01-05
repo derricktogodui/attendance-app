@@ -88,7 +88,8 @@ def upload_student_photo(file, student_id):
     conn.table("students").update({"photo_url": public_url}).eq("id", student_id).execute()
     
     return public_url
-
+    
+@st.cache_data(ttl=600) # Keep the list in memory for 10 minutes
 def get_all_students():
     return conn.table("students").select("id, full_name, class_id, gender").execute()
 # --- 4. CENTERED LOGIN PAGE ---
@@ -111,11 +112,12 @@ if not st.session_state.logged_in:
         with st.container():
             password = st.text_input("Enter Password", type="password", placeholder="Enter your credentials...")
             if st.button("Sign In to Classroom"):
-                if password == "admin123":
+                # Use secrets instead of a hardcoded "admin123"
+                if password == st.secrets["general"]["admin_password"]:
                     st.session_state.logged_in = True
                     st.rerun()
                 else:
-                    st.error("Invalid credentials. Please contact your administrator.")
+                    st.error("Invalid credentials.")
         
         st.markdown("<p style='text-align: center; color: #94a3b8; font-size: 0.8em; margin-top: 50px;'>© 2026 Academic Tracking System</p>", unsafe_allow_html=True)
     st.stop()
@@ -674,6 +676,7 @@ elif page == "Manage Records":
                     
                     st.error(f"Record for {delete_student_name} has been erased.")
                     st.rerun()
+
 
 
 
