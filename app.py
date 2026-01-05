@@ -147,7 +147,7 @@ if page == "Dashboard":
         df_classes = pd.DataFrame(classes_res.data)
         # NEW: Allow the teacher to pick one class or see everything
         class_list = {c['name']: c['id'] for c in classes_res.data}
-        view_filter = st.selectbox("🔍 Filter View", ["All Classes"] + list(class_list.keys()))
+        view_filter = st.selectbox("Filter By Class", ["All Classes"] + list(class_list.keys()))
 
         with st.spinner("Analyzing classroom data..."):
             students_res = conn.table("students").select("*").execute()
@@ -674,6 +674,7 @@ elif page == "Manage Records":
                     
                     st.error(f"Record for {delete_student_name} has been erased.")
                     st.rerun()
+
 
 
 
