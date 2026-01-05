@@ -248,7 +248,7 @@ if page == "Dashboard":
 
             with tabs[1]:
                 if not df_scores.empty and not df_att.empty:
-                    st.subheader("🚩 Intervention Priority List")
+                    st.subheader("Intervention Priority List")
                     
                     # 1. Logic for Verdicts
                     # We merge grades and attendance to find the 'hidden' struggling students
@@ -279,12 +279,12 @@ if page == "Dashboard":
                             hide_index=True
                         )
                     else:
-                        st.success("✨ All students are currently meeting attendance and academic benchmarks.")
+                        st.success("All students are currently meeting attendance and academic benchmarks.")
 
                     st.markdown("---")
                     
                     # 2. Visual Correlation Chart
-                    st.subheader("📉 The 'Attendance vs. Grades' Link")
+                    st.subheader("The 'Attendance vs. Grades' Link")
                     st.caption("Dots in the bottom-left corner are your highest priority students.")
                     
                     # Plotting the visual trend
@@ -720,6 +720,7 @@ elif page == "Manage Records":
                     
                     st.error(f"Record for {delete_student_name} has been erased.")
                     st.rerun()
+
 
 
 
