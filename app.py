@@ -159,13 +159,20 @@ if page == "Dashboard":
             df_att = pd.DataFrame(att_res.data)
 
             # APPLY CLASS FILTER
+            # APPLY CLASS FILTER
             if view_filter != "All Classes":
                 target_cid = class_list[view_filter]
                 df_students = df_students[df_students['class_id'] == target_cid]
-                # Filter scores and attendance to only show students in THIS class
+                
+                # Get the IDs of students in this specific class
                 valid_ids = df_students['id'].tolist()
-                df_scores = df_scores[df_scores['student_id'].isin(valid_ids)]
-                df_att = df_att[df_att['student_id'].isin(valid_ids)]
+                
+                # THE FIX: Only filter if the dataframes are not empty
+                if not df_scores.empty:
+                    df_scores = df_scores[df_scores['student_id'].isin(valid_ids)]
+                
+                if not df_att.empty:
+                    df_att = df_att[df_att['student_id'].isin(valid_ids)]
 
         # STEP 2: CALCULATE METRICS
         total_classes = len(df_classes)
@@ -667,6 +674,7 @@ elif page == "Manage Records":
                     
                     st.error(f"Record for {delete_student_name} has been erased.")
                     st.rerun()
+
 
 
 
