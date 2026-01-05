@@ -191,7 +191,7 @@ if page == "Dashboard":
         att_display = "No logs"
         if not df_att.empty:
             df_att['date'] = pd.to_datetime(df_att['date']).dt.date
-            one_week_ago = datetime.date.today() - datetime.timedelta(days=7)
+            one_week_ago = datetime.date.today() - datetime.timedelta(days=14)
             weekly_data = df_att[df_att['date'] >= one_week_ago]
             if not weekly_data.empty:
                 att_display = f"{weekly_data['is_present'].mean() * 100:.1f}%"
@@ -221,7 +221,7 @@ if page == "Dashboard":
         m_col1, m_col2, m_col3, m_col4 = st.columns(4)
         with m_col1: st.markdown(f'<div class="metric-container"><div class="m-label">Total Enrollment</div><div class="m-value">{total_students}</div></div>', unsafe_allow_html=True)
         with m_col2: st.markdown(f'<div class="metric-container"><div class="m-label">Gender Balance</div><div class="m-value">{gender_text}</div></div>', unsafe_allow_html=True)
-        with m_col3: st.markdown(f'<div class="metric-container"><div class="m-label">Weekly Presence</div><div class="m-value">{att_display}</div></div>', unsafe_allow_html=True)
+        with m_col3: st.markdown(f'<div class="metric-container"><div class="m-label">Subject Engagement</div><div class="m-value">{att_display}</div></div>', unsafe_allow_html=True)
         with m_col4: 
             f_color = "#ff4b4b" if red_flags > 0 else "#1e293b"
             st.markdown(f'<div class="metric-container"><div class="m-label">Priority Support</div><div class="m-value" style="color: {f_color};">{red_flags} Students</div></div>', unsafe_allow_html=True)
@@ -674,6 +674,7 @@ elif page == "Manage Records":
                     
                     st.error(f"Record for {delete_student_name} has been erased.")
                     st.rerun()
+
 
 
 
