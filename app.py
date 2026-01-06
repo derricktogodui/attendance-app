@@ -441,22 +441,33 @@ elif page == "Record Scores":
         selected_class = st.selectbox("Select Target Class", list(class_map.keys()))
         class_id = class_map[selected_class]
         
-        # 2. Fetch Students & Existing Scores for this specific Date/Category
+        # 2. Fetch Students & Existing Scores (SMART CLASS-SPECIFIC CHECK)
         students_res = get_students(class_id)
-        # Search if scores already exist for this date and category
-        existing_scores_res = conn.table("scores").select("*").eq("recorded_at", str(score_date)).eq("category", category).execute()
         
         if not students_res.data:
             st.info("No students enrolled in this class.")
         else:
+            # Get IDs for students in THIS class to narrow the search
+            class_student_ids = [s['id'] for s in students_res.data]
+            
+            # THE FIX: Search specifically for THIS class students, date, and category
+            existing_scores_res = conn.table("scores").select("*") \
+                .eq("recorded_at", str(score_date)) \
+                .eq("category", category) \
+                .in_("student_id", class_student_ids) \
+                .execute()
+            
             # Create a history map: {student_id: score_value}
             history_map = {str(rec['student_id']): rec['score_value'] for rec in existing_scores_res.data}
+            
+            # --- THE SMART WARNING ---
+            if existing_scores_res.data:
+                st.info(f"💡 Records for **{category}** on **{score_date}** already exist for **{selected_class}**. Saving will update these scores.")
             
             # Prepare data for the editor
             display_data = []
             for s in students_res.data:
                 s_id = str(s['id'])
-                # Pre-load existing score if found, else default to 0.0
                 current_score = history_map.get(s_id, 0.0)
                 display_data.append({
                     "ID": s['id'], 
@@ -732,6 +743,7 @@ elif page == "Manage Records":
                     
                     st.error(f"Record for {delete_student_name} has been erased.")
                     st.rerun()
+
 
 
 
