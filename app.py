@@ -420,7 +420,8 @@ elif page == "Take Attendance":
                     
                     # 'upsert' automatically handles the "don't mark twice" logic
                     # It updates the record if (student_id + date) matches, otherwise inserts.
-                    conn.table("attendance").upsert(attendance_records).execute()
+                    # We tell Supabase: If (student_id + date) already exists, UPDATE it instead of failing
+                    conn.table("attendance").upsert(attendance_records, on_conflict="student_id, date").execute()
                     st.success(f"Successfully recorded attendance for {len(attendance_records)} students.")
 # --- PAGE: SCORES ---
 elif page == "Record Scores":
@@ -503,7 +504,8 @@ elif page == "Record Scores":
                     
                     try:
                         # UPSERT prevents double-entries for the same student/category/date
-                        conn.table("scores").upsert(score_records).execute()
+                        # For scores, the conflict happens if student, category, and date are all the same
+                        conn.table("scores").upsert(score_records, on_conflict="student_id, category, recorded_at").execute()
                         st.success(f"Scores finalized. Class Average: {edited_df['Points Earned'].mean():.1f}/{max_pts}")
                     except Exception as e:
                         st.error(f"Error saving data: {e}")
@@ -730,6 +732,7 @@ elif page == "Manage Records":
                     
                     st.error(f"Record for {delete_student_name} has been erased.")
                     st.rerun()
+
 
 
 
